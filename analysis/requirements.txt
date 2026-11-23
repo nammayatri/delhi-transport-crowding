@@ -1,0 +1,5 @@
+duckdb==2.0.1
+polars==2.1.0
+pyarrow==26.0.1
+matplotlib==3.11.2
+numpy==2.5.5

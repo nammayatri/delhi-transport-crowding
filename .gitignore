@@ -1,0 +1,23 @@
+# Data: hackathon tickets, GTFS, OSM and model outputs (see data/README.md)
+data/*
+!data/README.md
+*.duckdb
+
+# Build outputs and dependencies
+crowding/target/
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+demo/node_modules/
+analysis/.venv/
+__pycache__/
+
+# OpenTripPlanner: upstream checkout and built graph (only the patch is kept)
+otp-crowding/otp-src/
+otp-crowding/graph/
+
+# Demo recording output (the video is attached to the GitHub release)
+demo/out/
+
+.DS_Store
+.env

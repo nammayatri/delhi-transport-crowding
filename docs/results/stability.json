@@ -1,0 +1,244 @@
+{
+  "min_test_tickets": 10.0,
+  "test_weekdays": 5,
+  "train_weekdays": 15,
+  "train_cells": 1563485,
+  "test_cells": 1335866,
+  "common_cells": 1279110,
+  "same_stop_share": 1.0,
+  "headline_cells": 138978,
+  "headline_share_of_common": 0.10865210967000492,
+  "headline_bus_share_of_common": 0.3012564236384526,
+  "comparison": [
+    {
+      "target": "test model",
+      "predictor": "time-of-day model (train)",
+      "Spearman": 0.8725706892863109,
+      "within-route Spearman": 0.8279201428514419,
+      "MAE (riders)": 7.420236543048022,
+      "median abs log ratio": 0.1426478624343872,
+      "level agreement": 0.7576882672077595,
+      "kappa": 0.6077922911557715
+    },
+    {
+      "target": "test model",
+      "predictor": "route all-day average (train)",
+      "Spearman": 0.1386365933173148,
+      "within-route Spearman": NaN,
+      "MAE (riders)": 20.830935733237315,
+      "median abs log ratio": 0.5235490352603653,
+      "level agreement": 0.46385039358747426,
+      "kappa": 0.016489268830781396
+    },
+    {
+      "target": "test model",
+      "predictor": "segment all-day average (train)",
+      "Spearman": 0.5374910541545577,
+      "within-route Spearman": 0.5017472303604149,
+      "MAE (riders)": 16.03754192347835,
+      "median abs log ratio": 0.38683636657200515,
+      "level agreement": 0.522881319345508,
+      "kappa": 0.15236676187458423
+    },
+    {
+      "target": "raw test count",
+      "predictor": "time-of-day model (train)",
+      "Spearman": 0.8434043407691144,
+      "within-route Spearman": 0.7756770648016315,
+      "MAE (riders)": 10.330258408877953,
+      "median abs log ratio": 0.17886019477124604,
+      "level agreement": 0.7171926491962757,
+      "kappa": 0.5530340012127228
+    },
+    {
+      "target": "raw test count",
+      "predictor": "route all-day average (train)",
+      "Spearman": 0.1092292113668909,
+      "within-route Spearman": NaN,
+      "MAE (riders)": 24.784531972964796,
+      "median abs log ratio": 0.5702335767556568,
+      "level agreement": 0.44155909568420904,
+      "kappa": 0.0129335480931311
+    },
+    {
+      "target": "raw test count",
+      "predictor": "segment all-day average (train)",
+      "Spearman": 0.4572803409425488,
+      "within-route Spearman": 0.400638440369819,
+      "MAE (riders)": 20.298148265994133,
+      "median abs log ratio": 0.4442934558033955,
+      "level agreement": 0.47734893292463554,
+      "kappa": 0.1121196664795317
+    }
+  ],
+  "headline_spearman": 0.8725706892863109,
+  "headline_within_route_spearman": 0.8279201428514419,
+  "headline_level_agreement": 0.7576882672077595,
+  "headline_kappa": 0.6077922911557715,
+  "baseline_route_spearman": 0.1386365933173148,
+  "baseline_route_within_route_spearman": NaN,
+  "baseline_route_level_agreement": 0.46385039358747426,
+  "baseline_route_mae": 20.830935733237315,
+  "model_mae": 7.420236543048022,
+  "baseline_segment_spearman": 0.5374910541545577,
+  "raw_target_spearman": 0.8434043407691144,
+  "model_beats_route_baseline": true,
+  "spearman_all_common": 0.8288166830896612,
+  "headline_median_log_ratio_test_over_train": 0.016108274459838867,
+  "both_periods_cells": 116413,
+  "both_periods_spearman": 0.8826093649904158,
+  "both_periods_level_agreement": 0.7598979495417179,
+  "both_periods_kappa": 0.6169031471854853,
+  "level_agreement_all_common": 0.8884865257874616,
+  "level_agreement_bus_weighted": 0.7859521230163179,
+  "nonseats_precision": 0.8782904586906221,
+  "nonseats_recall": 0.8537708388462556,
+  "test_seats_share_headline": 0.45617291945487776,
+  "by_train_confidence": [
+    {
+      "train confidence": "low",
+      "cells": 637,
+      "Spearman": 0.7773367069866758,
+      "level agreement": 0.5400313971742543,
+      "kappa": 0.28768686479327993,
+      "median abs log ratio": 0.49756383895874023
+    },
+    {
+      "train confidence": "medium",
+      "cells": 48336,
+      "Spearman": 0.8728828422095908,
+      "level agreement": 0.7658474015226746,
+      "kappa": 0.5770444165924212,
+      "median abs log ratio": 0.18202853202819824
+    },
+    {
+      "train confidence": "high",
+      "cells": 90005,
+      "Spearman": 0.880687974725712,
+      "level agreement": 0.7548469529470585,
+      "kappa": 0.6142412090442293,
+      "median abs log ratio": 0.1252424716949463
+    },
+    {
+      "train confidence": "low (all common cells)",
+      "cells": 943585,
+      "Spearman": 0.790134593270605,
+      "level agreement": 0.9251991076585575,
+      "kappa": 0.36711038946556857,
+      "median abs log ratio": 0.4183645248413086
+    },
+    {
+      "train confidence": "medium (all common cells)",
+      "cells": 241305,
+      "Spearman": 0.8277517490453596,
+      "level agreement": 0.798864507573403,
+      "kappa": 0.5326448406055121,
+      "median abs log ratio": 0.21229314804077148
+    },
+    {
+      "train confidence": "high (all common cells)",
+      "cells": 94220,
+      "Spearman": 0.8753548614423557,
+      "level agreement": 0.7503502441095309,
+      "kappa": 0.6061381987865361,
+      "median abs log ratio": 0.12883448600769043
+    }
+  ],
+  "by_test_tickets": [
+    {
+      "test tickets": "0-1",
+      "cells": 558974,
+      "Spearman model": 0.7728952894403043,
+      "Spearman route average": 0.26146243161048505,
+      "Spearman model vs raw": 0.4262092569177378,
+      "level agreement": 0.9626136457151854,
+      "kappa": 0.23872816790638943,
+      "median abs log ratio": 0.49859321117401123
+    },
+    {
+      "test tickets": "1-3",
+      "cells": 308535,
+      "Spearman model": 0.7430138763923495,
+      "Spearman route average": 0.23803411727752893,
+      "Spearman model vs raw": 0.6008274145301784,
+      "level agreement": 0.8823601860404816,
+      "kappa": 0.3589614449743307,
+      "median abs log ratio": 0.33290350437164307
+    },
+    {
+      "test tickets": "3-10",
+      "cells": 272623,
+      "Spearman model": 0.7987874846903168,
+      "Spearman route average": 0.23931054956021425,
+      "Spearman model vs raw": 0.7233880989686362,
+      "level agreement": 0.8101113992583164,
+      "kappa": 0.49094262677823747,
+      "median abs log ratio": 0.24720478057861328
+    },
+    {
+      "test tickets": "10-20",
+      "cells": 84563,
+      "Spearman model": 0.8479552600760301,
+      "Spearman route average": 0.1583551395056794,
+      "Spearman model vs raw": 0.8095039634592388,
+      "level agreement": 0.7596821304825988,
+      "kappa": 0.5672276234729897,
+      "median abs log ratio": 0.17055916786193848
+    },
+    {
+      "test tickets": "20-40",
+      "cells": 39646,
+      "Spearman model": 0.8614594353431761,
+      "Spearman route average": 0.048707820957384476,
+      "Spearman model vs raw": 0.8445231530934882,
+      "level agreement": 0.7415376078292892,
+      "kappa": 0.5901461510036468,
+      "median abs log ratio": 0.12328207492828369
+    },
+    {
+      "test tickets": "40-100",
+      "cells": 13825,
+      "Spearman model": 0.882123289449334,
+      "Spearman route average": -0.04016085001075575,
+      "Spearman model vs raw": 0.8719513761634546,
+      "level agreement": 0.782133815551537,
+      "kappa": 0.6407612281041842,
+      "median abs log ratio": 0.08381128311157227
+    },
+    {
+      "test tickets": "100+",
+      "cells": 944,
+      "Spearman model": 0.8923480022773443,
+      "Spearman route average": -0.2730680945920081,
+      "Spearman model vs raw": 0.8766235479415527,
+      "level agreement": 0.899364406779661,
+      "kappa": 0.7755896152643103,
+      "median abs log ratio": 0.03937578201293945
+    }
+  ],
+  "route_hour_cells": 18351,
+  "route_hour_cells_headline": 14695,
+  "route_hour_spearman": 0.9287412031054836,
+  "route_hour_spearman_all": 0.934486648996042,
+  "route_hour_pearson_log": 0.8986480890687591,
+  "route_hour_median_abs_log_ratio": 0.2656692024011953,
+  "route_hour_within_route_spearman_median": 0.9050567595459237,
+  "route_hour_within_route_routes": 889,
+  "confusion": [
+    [
+      54456.0,
+      10692.0,
+      360.0
+    ],
+    [
+      8749.0,
+      35757.0,
+      6574.0
+    ],
+    [
+      193.0,
+      7108.0,
+      15089.0
+    ]
+  ]
+}

@@ -1,0 +1,42 @@
+[package]
+name = "crowd-service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Crowding API: profiles, map, leg annotation, operator views, live nowcast, GTFS-RT occupancy, OTP crowding index and a journeys facade"
+
+[[bin]]
+name = "crowd-service"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = []
+kafka = ["dep:rdkafka"]
+
+[dependencies]
+crowd-core = { path = "../crowd-core" }
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_dhall.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+rustc-hash.workspace = true
+clap.workspace = true
+actix-web = "4"
+actix-cors = "0.7"
+actix-files = "0.6"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+arc-swap = "1"
+prometheus = "0.13"
+flate2 = "1"
+prost = "0.13"
+parking_lot = "0.12"
+rdkafka = { version = "0.37", optional = true, features = ["cmake-build"] }
+futures-util = "0.3"

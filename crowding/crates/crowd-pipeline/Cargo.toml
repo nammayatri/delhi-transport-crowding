@@ -1,0 +1,26 @@
+[package]
+name = "crowd-pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Batch pipeline: ticket records + GTFS -> crowding profiles"
+
+[[bin]]
+name = "crowd-pipeline"
+path = "src/main.rs"
+
+[dependencies]
+crowd-core = { path = "../crowd-core" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_dhall.workspace = true
+chrono.workspace = true
+csv.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+rustc-hash.workspace = true
+clap.workspace = true
+arrow-array = "60"
+arrow-schema = "60"
+parquet = { version = "60", default-features = false, features = ["arrow", "zstd"] }

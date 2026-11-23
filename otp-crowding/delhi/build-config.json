@@ -1,0 +1,10 @@
+{
+  "transitServiceStart": "2026-10-01",
+  "transitServiceEnd": "2027-03-31",
+  "transitFeeds": [
+    { "type": "gtfs", "feedId": "1", "source": "delhi-bus.gtfs.zip" }
+  ],
+  "osm": [
+    { "source": "delhi.osm.pbf" }
+  ]
+}

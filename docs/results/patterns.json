@@ -1,0 +1,251 @@
+{
+  "capacity_adjusted_routes": 645,
+  "nocap_am_peak_load": 45.828560940727805,
+  "raw_am_peak_load": 58.227183529349716,
+  "weekday_am_peak_bin": "09:00",
+  "weekday_pm_peak_bin": "19:00",
+  "weekday_am_peak_load": 35.86226920984573,
+  "weekday_pm_peak_load": 28.87682682772991,
+  "weekday_midday_trough_bin": "13:00",
+  "weekday_midday_trough_load": 13.323383465334256,
+  "weekday_am_peak_share_standing_or_crowded": 0.400816907486633,
+  "weekday_pm_peak_share_standing_or_crowded": 0.2762440008589563,
+  "raw_am_peak_bin": "09:00",
+  "raw_pm_peak_bin": "19:00",
+  "peaks_as_expected": true,
+  "daytype_mean_load": {
+    "weekday": 22.860345449251565,
+    "saturday": 20.575943305382225,
+    "sunday": 13.052030381837463
+  },
+  "daytype_share_not_seats": {
+    "weekday": 0.17395884148154914,
+    "saturday": 0.1134546886334188,
+    "sunday": 0.015459731389408104
+  },
+  "daytype_peak_load": {
+    "weekday": 35.86226920984573,
+    "sunday": 15.099876665346033,
+    "saturday": 28.998786104445294
+  },
+  "daytype_peak_bin": {
+    "weekday": "09:00",
+    "sunday": "09:00",
+    "saturday": "09:00"
+  },
+  "saturday_vs_weekday_mean_load": 0.9000714075410383,
+  "sunday_vs_weekday_mean_load": 0.5709463319708836,
+  "daytype_bus_segments": {
+    "weekday": 1222050.3067563819,
+    "saturday": 1098878.091013059,
+    "sunday": 1054208.0486915596
+  },
+  "direction": {
+    "all segments": {
+      "AM": {
+        "inbound_load": 38.125604154434555,
+        "outbound_load": 27.29212192973463,
+        "load_ratio_in_over_out": 1.3969453988440854,
+        "pkm_ratio_in_over_out": 1.6419106836660864
+      },
+      "PM": {
+        "inbound_load": 20.857303769246077,
+        "outbound_load": 31.969017650151084,
+        "load_ratio_in_over_out": 0.6524224171507349,
+        "pkm_ratio_in_over_out": 0.5846445533754857
+      },
+      "all day": {
+        "inbound_load": 23.03988196577902,
+        "outbound_load": 22.697390408033417,
+        "load_ratio_in_over_out": 1.0150894685066696,
+        "pkm_ratio_in_over_out": 1.0247038670800157
+      }
+    },
+    "mostly radial segments": {
+      "AM": {
+        "inbound_load": 38.729746786881314,
+        "outbound_load": 25.445307718884845,
+        "load_ratio_in_over_out": 1.5220781455960584,
+        "pkm_ratio_in_over_out": 1.8850627080556503
+      },
+      "PM": {
+        "inbound_load": 19.006430614256963,
+        "outbound_load": 33.02683186896746,
+        "load_ratio_in_over_out": 0.5754845239066272,
+        "pkm_ratio_in_over_out": 0.4839417884514913
+      }
+    }
+  },
+  "direction_by_ring": [
+    {
+      "distance from CP": "0-5 km",
+      "AM in/out load": 1.6272111431885499,
+      "AM in/out pass-km": 1.8447646726999571,
+      "PM in/out load": 0.5882037955504871,
+      "PM in/out pass-km": 0.4768697881839012
+    },
+    {
+      "distance from CP": "5-10 km",
+      "AM in/out load": 1.368817466624959,
+      "AM in/out pass-km": 1.6001324709823725,
+      "PM in/out load": 0.6932820573348063,
+      "PM in/out pass-km": 0.6260532813372962
+    },
+    {
+      "distance from CP": "10-20 km",
+      "AM in/out load": 1.4174143088394506,
+      "AM in/out pass-km": 1.6954754182736516,
+      "PM in/out load": 0.629602953365744,
+      "PM in/out pass-km": 0.5737750013763814
+    },
+    {
+      "distance from CP": "20+ km",
+      "AM in/out load": 1.0433088526993666,
+      "AM in/out pass-km": 1.3336865455342437,
+      "PM in/out load": 0.6969389241086165,
+      "PM in/out pass-km": 0.6251340897570093
+    }
+  ],
+  "direction_as_expected": true,
+  "top15_route_segments_routes": [
+    "729DOWN",
+    "729UP"
+  ],
+  "top15_stops_by_sector": [
+    {
+      "sector": "S",
+      "len": 5
+    },
+    {
+      "sector": "SW",
+      "len": 4
+    },
+    {
+      "sector": "W",
+      "len": 2
+    },
+    {
+      "sector": "SE",
+      "len": 1
+    },
+    {
+      "sector": "N",
+      "len": 1
+    },
+    {
+      "sector": "NW",
+      "len": 1
+    },
+    {
+      "sector": "E",
+      "len": 1
+    }
+  ],
+  "top15_stops_south": 10,
+  "top15_stops_with_hub_word": 4,
+  "top_stops": [
+    "Badarpur Border (T)",
+    "Hamdard Nagar / Sangam Vihar",
+    "Said ul zeb Village",
+    "West Patel Nagar",
+    "Ambedkar Nagar Depot",
+    "Mehrauli Terminal",
+    "Kapashera Border",
+    "SagarPur Vashisht park",
+    "Vayu Sena Bad (Tigri)",
+    "ISBT Nityanand Marg",
+    "Mahipal Pur",
+    "Mother Dairy",
+    "Samalkha Village",
+    "Dhaula Kuan",
+    "Jahangir Puri Metro Station"
+  ],
+  "top_links": [
+    "West Patel Nagar -> South Patel Nagar (Metro Station)",
+    "South Patel Nagar (Metro Station) -> East Patel Nagar",
+    "Delhi Secretariat -> Rainy Well",
+    "Madipur Village -> SPM College",
+    "SPM College -> Shivaji Park",
+    "Shivaji Park -> Maharaja Agrasen Hospital",
+    "Rainy Well -> Delhi Secretariat",
+    "South Patel Nagar (Metro Station) -> West Patel Nagar",
+    "Jahangir Puri Metro Station -> GTK Depot",
+    "Libas Pur GT Road -> Swaroop Nagar GT Road",
+    "New Multan Nagar -> Ordinance Depot",
+    "Shivaji Park -> SPM College",
+    "Madipur JJ Colony -> Madipur Village",
+    "Libas Pur GT Road -> Sanjay Gandhi Transport Nagar",
+    "Maharaja Agrasen Hospital -> Shivaji Park"
+  ],
+  "peak_routes": [
+    "182AUP",
+    "507UP",
+    "835LSTLUP",
+    "174DOWN",
+    "507DOWN",
+    "822UP",
+    "539DOWN",
+    "DW-1UP",
+    "109DOWN",
+    "833ADOWN",
+    "254UP",
+    "706ADOWN",
+    "539UP",
+    "717DOWN",
+    "DW-1DOWN"
+  ],
+  "bus_km_levels": [
+    {
+      "window": "all day",
+      "bus_km": 697425.4375985943,
+      "seats": 0.8186008695658928,
+      "standing": 0.13610776829350515,
+      "crowded": 0.04529136214060054,
+      "exp_standing": 0.1320001436170138,
+      "exp_crowded": 0.06830468058650334
+    },
+    {
+      "window": "AM peak 08:00-10:00",
+      "bus_km": 119074.25883143023,
+      "seats": 0.6323549946750427,
+      "standing": 0.24447119858006708,
+      "crowded": 0.12317380674489174,
+      "exp_standing": 0.21116156346322698,
+      "exp_crowded": 0.14968178378292712
+    },
+    {
+      "window": "PM peak 17:30-20:00",
+      "bus_km": 120491.30509201133,
+      "seats": 0.749534429399544,
+      "standing": 0.1769441390755549,
+      "crowded": 0.07352143152490005,
+      "exp_standing": 0.1638044080302917,
+      "exp_crowded": 0.09711268410114263
+    },
+    {
+      "window": "outside peaks",
+      "bus_km": 457859.87367515225,
+      "seats": 0.8852129419056973,
+      "standing": 0.09717943283251239,
+      "crowded": 0.017607625261790397,
+      "exp_standing": 0.10304319524663876,
+      "exp_crowded": 0.03956000793393902
+    }
+  ],
+  "peak_bus_km_levels": {
+    "seats": 0.691291274116321,
+    "standing": 0.21050795530139277,
+    "crowded": 0.09820077058228643,
+    "exp_standing": 0.18734292538307631,
+    "exp_crowded": 0.12324175907973364
+  },
+  "model_weekday_boardings": 3462064.0836761,
+  "weekday_bus_km_straight_line": 697425.4375985935,
+  "weekday_passenger_km": 16249417.086117236,
+  "weekday_load_per_bus_km": 23.299145987659923,
+  "weekday_share_over_crush": 0.0,
+  "weekday_max_load": 90.0,
+  "matched_share": 0.7775369262615439,
+  "duplicate_route_names_in_tables": [],
+  "peak_routes_over_crush": 0
+}

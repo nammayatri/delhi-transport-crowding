@@ -1,0 +1,15 @@
+[project]
+name = "delhi-bus-crowding-analysis"
+version = "0.1.0"
+description = "Validation of the Delhi bus crowding model: data audit, known-pattern checks, stability, sensitivity and coverage."
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb==2.0.1",
+    "polars==2.1.0",
+    "pyarrow==26.0.1",
+    "matplotlib==3.11.2",
+    "numpy==2.5.5",
+]
+
+[tool.ruff]
+line-length = 120

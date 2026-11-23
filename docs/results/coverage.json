@@ -1,0 +1,203 @@
+{
+  "confidence_thresholds": {
+    "high_min_tickets": 40.0,
+    "medium_min_tickets": 12.0
+  },
+  "by_daytype": [
+    {
+      "daytype": "weekday",
+      "high": 0.2720011253081696,
+      "medium": 0.31296897860310796,
+      "low": 0.4150298960887224
+    },
+    {
+      "daytype": "saturday",
+      "high": 0.027641154645644386,
+      "medium": 0.17672501399554993,
+      "low": 0.7956338313588057
+    },
+    {
+      "daytype": "sunday",
+      "high": 0.011512203085144196,
+      "medium": 0.12313593833498114,
+      "low": 0.8653518585798746
+    }
+  ],
+  "weekday_by_band": [
+    {
+      "band": "early 04:00-08:00",
+      "bus_segments": 124129.8675689958,
+      "high": 0.18389640472103194,
+      "medium": 0.30062282624272985,
+      "low": 0.5154807690362382,
+      "tickets_per_bus_segment": 0.7589863292442728
+    },
+    {
+      "band": "AM peak 08:00-10:00",
+      "bus_segments": 211809.86008938774,
+      "high": 0.475208800058189,
+      "medium": 0.2735167269292585,
+      "low": 0.2512744730125525,
+      "tickets_per_bus_segment": 1.360991999838581
+    },
+    {
+      "band": "midday 10:00-17:30",
+      "bus_segments": 493455.6973204678,
+      "high": 0.19472507120323587,
+      "medium": 0.3319435536412035,
+      "low": 0.4733313751555607,
+      "tickets_per_bus_segment": 0.6743022410924401
+    },
+    {
+      "band": "PM peak 17:30-20:00",
+      "bus_segments": 213238.27681514062,
+      "high": 0.34430181187657255,
+      "medium": 0.31684820818213866,
+      "low": 0.33884997994128874,
+      "tickets_per_bus_segment": 1.0446672186638213
+    },
+    {
+      "band": "late 20:00-24:00",
+      "bus_segments": 179416.60496238992,
+      "high": 0.2196652419430342,
+      "medium": 0.3112890325194152,
+      "low": 0.4690457255375506,
+      "tickets_per_bus_segment": 0.8086737806535694
+    }
+  ],
+  "weekday_reliable_share": 0.5849701039112776,
+  "weekday_worst_bins": {
+    "06:00": 0.6296227986389394,
+    "14:00": 0.6212829382114926,
+    "13:30": 0.6113650407015049,
+    "14:30": 0.5995694854012447,
+    "13:00": 0.5981276377200309
+  },
+  "weekday_best_bins": {
+    "09:00": 0.22548074602312523,
+    "09:30": 0.23676088494462258,
+    "08:30": 0.24751247839447987
+  },
+  "reliable_by_ring": {
+    "0-5 km": 0.5353678491791735,
+    "5-10 km": 0.6209298595065212,
+    "10-20 km": 0.6199769476953814,
+    "20+ km": 0.3935057073164285
+  },
+  "reliable_by_sector": {
+    "N": 0.44761521408711985,
+    "NE": 0.47051963023692345,
+    "E": 0.6085377393788776,
+    "SE": 0.6988958239435439,
+    "S": 0.766869130164694,
+    "SW": 0.7170470045086176,
+    "W": 0.5238425982171122,
+    "NW": 0.5322029785007782
+  },
+  "best_sectors": [
+    "S",
+    "SW",
+    "SE"
+  ],
+  "worst_sectors": [
+    "N",
+    "NE",
+    "W"
+  ],
+  "map_points": 16213,
+  "weak_areas": [
+    {
+      "area_stop": "Om Vihar",
+      "where": "16 km W of CP",
+      "reliable": 0.20229962744761137
+    },
+    {
+      "area_stop": "Narela Terminal",
+      "where": "27 km NW of CP",
+      "reliable": 0.25537495916221636
+    },
+    {
+      "area_stop": "Ice Factory (Rani Jhansi Road)",
+      "where": "4 km N of CP",
+      "reliable": 0.2609421740608037
+    },
+    {
+      "area_stop": "Telephone Exchange",
+      "where": "7 km N of CP",
+      "reliable": 0.2649197712240825
+    },
+    {
+      "area_stop": "B2A Janakpuri",
+      "where": "12 km W of CP",
+      "reliable": 0.31734685365981874
+    },
+    {
+      "area_stop": "ISBT Nityanand Marg",
+      "where": "4 km N of CP",
+      "reliable": 0.3492612059517097
+    },
+    {
+      "area_stop": "Nanak Piyau",
+      "where": "24 km W of CP",
+      "reliable": 0.3559969024249112
+    },
+    {
+      "area_stop": "NajafGarh Delhi Gate",
+      "where": "22 km W of CP",
+      "reliable": 0.4008942927824685
+    },
+    {
+      "area_stop": "Bank Colony",
+      "where": "12 km NE of CP",
+      "reliable": 0.40604877988856364
+    },
+    {
+      "area_stop": "B-Block Yamuna Vihar",
+      "where": "10 km NE of CP",
+      "reliable": 0.41012976097305254
+    },
+    {
+      "area_stop": "Dholi Piao",
+      "where": "14 km W of CP",
+      "reliable": 0.4286864393070086
+    },
+    {
+      "area_stop": "Model Town II",
+      "where": "9 km N of CP",
+      "reliable": 0.43982621838076935
+    }
+  ],
+  "grid_cells_busy_threshold_bus_segments": 4330.218715400249,
+  "busy_cells_with_no_reliable_segment": 0,
+  "busy_cells": 101,
+  "duplicate_names": {
+    "names": 27,
+    "route_ids": 54,
+    "bus_share": 0.0445218632501728,
+    "trips_dup_names": 247661,
+    "trips_with_twin": 7257,
+    "trips_with_twin_30min": 5290,
+    "trips_all": 507187,
+    "timetable_names": 421,
+    "timetable_multi_agency": 421.0
+  },
+  "twin_share_of_dup_name_trips": 0.029302150924045367,
+  "capture_at_cap_routes": 69.0,
+  "capture_at_cap_bus_share": 0.02181317730264929,
+  "supply": {
+    "obs_used": 0.39688578323147633,
+    "no_timetable": 0.1967004873986222,
+    "sched_ratio": 2.101124631125249
+  },
+  "over_crush": {
+    "cells": 0,
+    "high_conf": 0,
+    "no_timetable": 0,
+    "routes_high": 0
+  },
+  "route_not_in_timetable_share": 0.12794176645250457,
+  "stop_not_found_share": 0.09452130728595151,
+  "imputed_share": 0.08968088194104533,
+  "patterns_with_data": 1766,
+  "patterns_total": 2403
+}

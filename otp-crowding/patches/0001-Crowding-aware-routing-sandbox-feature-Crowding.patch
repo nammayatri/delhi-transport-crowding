@@ -1,0 +1,991 @@
+From df79edd9eef1717e78cda8f462fd17cb15e5196b Mon Sep 17 00:00:00 2001
+From: crowding <crowding@localhost>
+Date: Sat, 21 Nov 2026 20:52:02 +0530
+Subject: [PATCH] Crowding-aware routing (sandbox feature Crowding)
+
+Adds a crowding cost to RAPTOR rides from an external crowding index, a
+crowdingReluctance plan argument and Leg.crowding in the GTFS GraphQL API.
+---
+ .../crowding/CrowdingCostCalculatorTest.java  | 128 +++++++++++++++
+ .../ext/crowding/CrowdingCostCalculator.java  | 147 ++++++++++++++++++
+ .../ext/crowding/CrowdingIndex.java           | 101 ++++++++++++
+ .../ext/crowding/CrowdingIndexService.java    | 127 +++++++++++++++
+ .../ext/crowding/LegCrowdingMapper.java       |  71 +++++++++
+ .../apis/gtfs/datafetchers/LegImpl.java       |   9 ++
+ .../apis/gtfs/mapping/RouteRequestMapper.java |   1 +
+ .../framework/application/OTPFeature.java     |   5 +
+ .../transit/cost/CostCalculatorFactory.java   |   8 +
+ .../cost/GeneralizedCostParameters.java       |   7 +
+ .../GeneralizedCostParametersBuilder.java     |  11 ++
+ .../GeneralizedCostParametersMapper.java      |   9 ++
+ .../preference/TransitPreferences.java        |  28 +++-
+ .../opentripplanner/apis/gtfs/schema.graphqls |  46 ++++++
+ 14 files changed, 696 insertions(+), 2 deletions(-)
+ create mode 100644 src/ext-test/java/org/opentripplanner/ext/crowding/CrowdingCostCalculatorTest.java
+ create mode 100644 src/ext/java/org/opentripplanner/ext/crowding/CrowdingCostCalculator.java
+ create mode 100644 src/ext/java/org/opentripplanner/ext/crowding/CrowdingIndex.java
+ create mode 100644 src/ext/java/org/opentripplanner/ext/crowding/CrowdingIndexService.java
+ create mode 100644 src/ext/java/org/opentripplanner/ext/crowding/LegCrowdingMapper.java
+
+diff --git a/src/ext-test/java/org/opentripplanner/ext/crowding/CrowdingCostCalculatorTest.java b/src/ext-test/java/org/opentripplanner/ext/crowding/CrowdingCostCalculatorTest.java
+new file mode 100644
+index 0000000..5a203ef
+--- /dev/null
++++ b/src/ext-test/java/org/opentripplanner/ext/crowding/CrowdingCostCalculatorTest.java
+@@ -0,0 +1,128 @@
++package org.opentripplanner.ext.crowding;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
++import java.io.DataOutputStream;
++import java.nio.charset.StandardCharsets;
++import java.util.zip.GZIPOutputStream;
++import org.junit.jupiter.api.Test;
++import org.opentripplanner.raptor._data.transit.TestTripPattern;
++import org.opentripplanner.raptor._data.transit.TestTripSchedule;
++import org.opentripplanner.routing.algorithm.raptoradapter.transit.cost.DefaultCostCalculator;
++
++class CrowdingCostCalculatorTest {
++
++  // Stops 1..4; the middle stretch (position 1 -> 2) is crowded and adds 600 s of crowding.
++  private static final TestTripSchedule TRIP = TestTripSchedule
++    .schedule(TestTripPattern.pattern(1, 2, 3, 4))
++    .times("10:00 10:10 10:20 10:30")
++    .build();
++  private static final CrowdingIndex.Entry ENTRY = new CrowdingIndex.Entry(
++    new int[] { 0, 0, 600, 600 },
++    new byte[] { 0, 2, 0 }
++  );
++  private static final DefaultCostCalculator<TestTripSchedule> BASE = new DefaultCostCalculator<>(
++    60,
++    0,
++    1.0,
++    null,
++    null
++  );
++  private static final CrowdingCostCalculator<TestTripSchedule> SUBJECT = new CrowdingCostCalculator<>(
++    BASE,
++    1.5,
++    t -> ENTRY
++  );
++
++  private static int ride(DefaultCostCalculator<TestTripSchedule> unused, int board, int alight) {
++    return TRIP.arrival(alight) - TRIP.departure(board);
++  }
++
++  @Test
++  void crowdedMiddleStretchAddsReluctanceTimesExtraSeconds() {
++    int t = ride(BASE, 0, 3);
++    int base = BASE.transitArrivalCost(0, 0, t, TRIP, 4);
++    int withCrowding = SUBJECT.transitArrivalCost(0, 0, t, TRIP, 4);
++    assertEquals(base + 100 * 900, withCrowding);
++  }
++
++  @Test
++  void boardingAfterTheCrowdedStretchCostsNothingExtra() {
++    int t = ride(BASE, 2, 3);
++    assertEquals(
++      BASE.transitArrivalCost(0, 0, t, TRIP, 4),
++      SUBJECT.transitArrivalCost(0, 0, t, TRIP, 4)
++    );
++  }
++
++  @Test
++  void relativeRidingCostCountsCrowdingDownstreamOfBoarding() {
++    int before = TRIP.departure(0);
++    int after = TRIP.departure(2);
++    assertEquals(
++      BASE.onTripRelativeRidingCost(before, TRIP) + 100 * 900,
++      SUBJECT.onTripRelativeRidingCost(before, TRIP)
++    );
++    assertEquals(
++      BASE.onTripRelativeRidingCost(after, TRIP),
++      SUBJECT.onTripRelativeRidingCost(after, TRIP)
++    );
++  }
++
++  @Test
++  void lowerBoundIsUnchangedSoHeuristicsStayAdmissible() {
++    assertEquals(BASE.calculateMinCost(1200, 1), SUBJECT.calculateMinCost(1200, 1));
++  }
++
++  @Test
++  void missingOrMismatchedEntryFallsBackToDelegate() {
++    var none = new CrowdingCostCalculator<TestTripSchedule>(BASE, 1.5, t -> null);
++    var wrong = new CrowdingCostCalculator<TestTripSchedule>(
++      BASE,
++      1.5,
++      t -> new CrowdingIndex.Entry(new int[] { 0, 900 }, new byte[] { 2 })
++    );
++    int t = ride(BASE, 0, 3);
++    int base = BASE.transitArrivalCost(0, 0, t, TRIP, 4);
++    assertEquals(base, none.transitArrivalCost(0, 0, t, TRIP, 4));
++    assertEquals(base, wrong.transitArrivalCost(0, 0, t, TRIP, 4));
++  }
++
++  @Test
++  void readsTheBinaryIndex() throws Exception {
++    var bytes = new ByteArrayOutputStream();
++    try (var out = new DataOutputStream(new GZIPOutputStream(bytes))) {
++      out.write("CRWD".getBytes(StandardCharsets.US_ASCII));
++      out.writeShort(1);
++      out.writeShort(0);
++      out.writeInt(20261028);
++      out.writeLong(1_800_000_000L);
++      out.writeInt(1);
++      byte[] id = "142_12_50".getBytes(StandardCharsets.UTF_8);
++      out.writeShort(id.length);
++      out.write(id);
++      out.writeShort(3);
++      out.writeInt(0);
++      out.writeInt(0);
++      out.writeInt(420);
++      out.write(new byte[] { 0, 2 });
++    }
++    var idx = CrowdingIndex.read(new ByteArrayInputStream(bytes.toByteArray()));
++    assertEquals(
++      20261028,
++      idx.serviceDate().getYear() *
++      10000 +
++      idx.serviceDate().getMonthValue() *
++      100 +
++      idx.serviceDate().getDayOfMonth()
++    );
++    var e = idx.get("142_12_50");
++    assertEquals(420, e.extraSeconds(0, 2));
++    assertEquals(2, e.level(1));
++    assertEquals(CrowdingIndex.NO_DATA, e.level(5));
++    assertTrue(idx.size() == 1);
++  }
++}
+diff --git a/src/ext/java/org/opentripplanner/ext/crowding/CrowdingCostCalculator.java b/src/ext/java/org/opentripplanner/ext/crowding/CrowdingCostCalculator.java
+new file mode 100644
+index 0000000..e755c09
+--- /dev/null
++++ b/src/ext/java/org/opentripplanner/ext/crowding/CrowdingCostCalculator.java
+@@ -0,0 +1,147 @@
++package org.opentripplanner.ext.crowding;
++
++import java.util.function.Function;
++import org.opentripplanner.raptor.api.model.RaptorAccessEgress;
++import org.opentripplanner.raptor.api.model.RaptorTransferConstraint;
++import org.opentripplanner.raptor.api.model.RaptorTripSchedule;
++import org.opentripplanner.raptor.spi.RaptorCostCalculator;
++import org.opentripplanner.routing.algorithm.raptoradapter.transit.TripSchedule;
++import org.opentripplanner.routing.algorithm.raptoradapter.transit.cost.DefaultTripSchedule;
++
++/**
++ * Adds a crowding cost to the generalized cost of every ride:
++ * {@code reluctance x (C[alight] - C[board])}, where {@code C} is the trip's cumulative
++ * crowding-extra seconds from the {@link CrowdingIndex}. The extra cost is never negative, so
++ * {@link #calculateMinCost} stays a valid lower bound and the RAPTOR heuristics remain
++ * admissible.
++ * <p>
++ * Board and alight positions are recovered from the trip schedule: RAPTOR passes the alight stop
++ * and the ride time, and both board and alight times are schedule times of the same trip.
++ */
++public final class CrowdingCostCalculator<T extends DefaultTripSchedule>
++  implements RaptorCostCalculator<T> {
++
++  private final RaptorCostCalculator<T> delegate;
++  /** Raptor cost units are centi-seconds. */
++  private final double centiReluctance;
++  private final Function<T, CrowdingIndex.Entry> lookup;
++
++  public CrowdingCostCalculator(RaptorCostCalculator<T> delegate, double reluctance) {
++    this(delegate, reluctance, CrowdingCostCalculator::indexEntry);
++  }
++
++  /** With an explicit lookup, for tests. */
++  CrowdingCostCalculator(
++    RaptorCostCalculator<T> delegate,
++    double reluctance,
++    Function<T, CrowdingIndex.Entry> lookup
++  ) {
++    this.delegate = delegate;
++    this.centiReluctance = reluctance * 100.0;
++    this.lookup = lookup;
++  }
++
++  @Override
++  public int boardingCost(
++    boolean firstBoarding,
++    int prevArrivalTime,
++    int boardStop,
++    int boardTime,
++    T trip,
++    RaptorTransferConstraint transferConstraints
++  ) {
++    return delegate.boardingCost(
++      firstBoarding,
++      prevArrivalTime,
++      boardStop,
++      boardTime,
++      trip,
++      transferConstraints
++    );
++  }
++
++  /**
++   * Rides boarded on the same pattern at the same stop are compared on this relative cost. We add
++   * the crowding from the boarding position to the end of the trip, so of two trips the one that
++   * is less crowded downstream compares better.
++   */
++  @Override
++  public int onTripRelativeRidingCost(int boardTime, T trip) {
++    int base = delegate.onTripRelativeRidingCost(boardTime, trip);
++    var e = lookup.apply(trip);
++    if (e == null || e.numberOfStops() != trip.pattern().numberOfStopsInPattern()) {
++      return base;
++    }
++    int n = trip.pattern().numberOfStopsInPattern();
++    int b = boardPosition(trip, boardTime, n - 2);
++    if (b < 0) {
++      return base;
++    }
++    return base + cost(e.extraSeconds(b, n - 1));
++  }
++
++  @Override
++  public int transitArrivalCost(
++    int boardCost,
++    int alightSlack,
++    int transitTime,
++    T trip,
++    int toStop
++  ) {
++    int base = delegate.transitArrivalCost(boardCost, alightSlack, transitTime, trip, toStop);
++    var e = lookup.apply(trip);
++    if (e == null || e.numberOfStops() != trip.pattern().numberOfStopsInPattern()) {
++      return base;
++    }
++    var pattern = trip.pattern();
++    for (int a = pattern.numberOfStopsInPattern() - 1; a > 0; a--) {
++      if (pattern.stopIndex(a) != toStop) {
++        continue;
++      }
++      int b = boardPosition(trip, trip.arrival(a) - transitTime, a - 1);
++      if (b >= 0) {
++        return base + cost(e.extraSeconds(b, a));
++      }
++    }
++    return base;
++  }
++
++  @Override
++  public int waitCost(int waitTimeInSeconds) {
++    return delegate.waitCost(waitTimeInSeconds);
++  }
++
++  @Override
++  public int calculateMinCost(int minTravelTime, int minNumTransfers) {
++    return delegate.calculateMinCost(minTravelTime, minNumTransfers);
++  }
++
++  @Override
++  public int costEgress(RaptorAccessEgress egress) {
++    return delegate.costEgress(egress);
++  }
++
++  private int cost(int extraSeconds) {
++    return extraSeconds <= 0 ? 0 : (int) Math.round(centiReluctance * extraSeconds);
++  }
++
++  private static int boardPosition(RaptorTripSchedule trip, int boardTime, int maxPos) {
++    for (int p = maxPos; p >= 0; p--) {
++      if (trip.departure(p) == boardTime) {
++        return p;
++      }
++    }
++    return -1;
++  }
++
++  private static CrowdingIndex.Entry indexEntry(DefaultTripSchedule trip) {
++    if (!(trip instanceof TripSchedule ts)) {
++      return null;
++    }
++    var idx = CrowdingIndexService.peek(ts.getServiceDate());
++    if (idx == null) {
++      return null;
++    }
++    return idx.get(ts.getOriginalTripTimes().getTrip().getId().getId());
++  }
++}
+diff --git a/src/ext/java/org/opentripplanner/ext/crowding/CrowdingIndex.java b/src/ext/java/org/opentripplanner/ext/crowding/CrowdingIndex.java
+new file mode 100644
+index 0000000..9365fa6
+--- /dev/null
++++ b/src/ext/java/org/opentripplanner/ext/crowding/CrowdingIndex.java
+@@ -0,0 +1,101 @@
++package org.opentripplanner.ext.crowding;
++
++import java.io.DataInputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.nio.charset.StandardCharsets;
++import java.time.Instant;
++import java.time.LocalDate;
++import java.util.HashMap;
++import java.util.Map;
++import java.util.zip.GZIPInputStream;
++
++/**
++ * Crowding for every trip running on one service date, as published by the crowding service
++ * ({@code GET /v1/otp/crowding-index?date=YYYY-MM-DD}).
++ * <p>
++ * For each trip it holds the cumulative crowding-extra seconds at each stop position,
++ * {@code C[0] = 0, C[k+1] = C[k] + rideTime(k) * (multiplier(k) - 1)}, so riding from position
++ * {@code i} to {@code j} costs {@code C[j] - C[i]} extra seconds, and the commuter level of each
++ * segment. Instances are immutable and swapped atomically by {@link CrowdingIndexService}.
++ */
++public final class CrowdingIndex {
++
++  public static final int NO_DATA = 255;
++  public static final String[] LEVELS = { "SEATS", "STANDING", "CROWDED" };
++
++  public record Entry(int[] cumulativeSeconds, byte[] levels) {
++    public int extraSeconds(int fromPos, int toPos) {
++      if (fromPos < 0 || toPos >= cumulativeSeconds.length || toPos <= fromPos) {
++        return 0;
++      }
++      return cumulativeSeconds[toPos] - cumulativeSeconds[fromPos];
++    }
++
++    public int level(int segment) {
++      return segment >= 0 && segment < levels.length ? levels[segment] & 0xff : NO_DATA;
++    }
++
++    public int numberOfStops() {
++      return cumulativeSeconds.length;
++    }
++  }
++
++  private final LocalDate serviceDate;
++  private final Instant generatedAt;
++  private final Map<String, Entry> trips;
++
++  private CrowdingIndex(LocalDate serviceDate, Instant generatedAt, Map<String, Entry> trips) {
++    this.serviceDate = serviceDate;
++    this.generatedAt = generatedAt;
++    this.trips = trips;
++  }
++
++  public LocalDate serviceDate() {
++    return serviceDate;
++  }
++
++  public Instant generatedAt() {
++    return generatedAt;
++  }
++
++  public int size() {
++    return trips.size();
++  }
++
++  /** Crowding for a trip, by its GTFS trip id (without feed prefix), or null. */
++  public Entry get(String tripId) {
++    return trips.get(tripId);
++  }
++
++  /** Parse the gzip-compressed binary format (version 1). */
++  public static CrowdingIndex read(InputStream gzipped) throws IOException {
++    try (var in = new DataInputStream(new GZIPInputStream(gzipped, 1 << 16))) {
++      byte[] magic = in.readNBytes(4);
++      if (!"CRWD".equals(new String(magic, StandardCharsets.US_ASCII))) {
++        throw new IOException("Not a crowding index");
++      }
++      int version = in.readUnsignedShort();
++      if (version != 1) {
++        throw new IOException("Unsupported crowding index version " + version);
++      }
++      in.readUnsignedShort();
++      int ymd = in.readInt();
++      var date = LocalDate.of(ymd / 10000, (ymd / 100) % 100, ymd % 100);
++      var generated = Instant.ofEpochSecond(in.readLong());
++      int n = in.readInt();
++      var map = new HashMap<String, Entry>(n * 2);
++      for (int i = 0; i < n; i++) {
++        String id = new String(in.readNBytes(in.readUnsignedShort()), StandardCharsets.UTF_8);
++        int stops = in.readUnsignedShort();
++        int[] cum = new int[stops];
++        for (int k = 0; k < stops; k++) {
++          cum[k] = in.readInt();
++        }
++        byte[] levels = in.readNBytes(Math.max(0, stops - 1));
++        map.put(id, new Entry(cum, levels));
++      }
++      return new CrowdingIndex(date, generated, Map.copyOf(map));
++    }
++  }
++}
+diff --git a/src/ext/java/org/opentripplanner/ext/crowding/CrowdingIndexService.java b/src/ext/java/org/opentripplanner/ext/crowding/CrowdingIndexService.java
+new file mode 100644
+index 0000000..ffa5000
+--- /dev/null
++++ b/src/ext/java/org/opentripplanner/ext/crowding/CrowdingIndexService.java
+@@ -0,0 +1,127 @@
++package org.opentripplanner.ext.crowding;
++
++import java.net.URI;
++import java.net.http.HttpClient;
++import java.net.http.HttpRequest;
++import java.net.http.HttpResponse;
++import java.time.Duration;
++import java.time.Instant;
++import java.time.LocalDate;
++import java.time.ZoneId;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++/**
++ * Keeps one {@link CrowdingIndex} per service date, fetched from the crowding service and
++ * refreshed in the background. Routing never waits on the network inside the search: the cost
++ * calculator only {@link #peek}s; the request mapper calls {@link #ensureLoaded} once per request
++ * so the search date is present.
++ * <p>
++ * Configured with environment variables:
++ * <ul>
++ *   <li>{@code OTP_CROWDING_INDEX_URL} (default {@code http://localhost:8090/v1/otp/crowding-index})</li>
++ *   <li>{@code OTP_CROWDING_REFRESH_SECONDS} (default 300): live adjustments arrive this often</li>
++ *   <li>{@code OTP_CROWDING_TIMEZONE} (default {@code Asia/Kolkata}): zone of service dates</li>
++ * </ul>
++ */
++public final class CrowdingIndexService {
++
++  private static final Logger LOG = LoggerFactory.getLogger(CrowdingIndexService.class);
++
++  private static final String URL = env(
++    "OTP_CROWDING_INDEX_URL",
++    "http://localhost:8090/v1/otp/crowding-index"
++  );
++  private static final Duration REFRESH = Duration.ofSeconds(
++    Long.parseLong(env("OTP_CROWDING_REFRESH_SECONDS", "300"))
++  );
++  public static final ZoneId ZONE = ZoneId.of(env("OTP_CROWDING_TIMEZONE", "Asia/Kolkata"));
++
++  private record Holder(CrowdingIndex index, Instant fetched) {}
++
++  private static final ConcurrentHashMap<LocalDate, Holder> CACHE = new ConcurrentHashMap<>();
++  private static final ConcurrentHashMap<LocalDate, Boolean> REFRESHING = new ConcurrentHashMap<>();
++  private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(r -> {
++    var t = new Thread(r, "crowding-index-refresh");
++    t.setDaemon(true);
++    return t;
++  });
++  private static final HttpClient HTTP = HttpClient
++    .newBuilder()
++    .connectTimeout(Duration.ofSeconds(5))
++    .build();
++
++  private CrowdingIndexService() {}
++
++  private static String env(String key, String fallback) {
++    String v = System.getenv(key);
++    return v == null || v.isBlank() ? fallback : v;
++  }
++
++  /** The index for a date if already loaded; schedules a refresh when stale. Never blocks. */
++  public static CrowdingIndex peek(LocalDate date) {
++    var h = CACHE.get(date);
++    if (h == null) {
++      return null;
++    }
++    if (h.fetched.plus(REFRESH).isBefore(Instant.now())) {
++      refreshAsync(date);
++    }
++    return h.index;
++  }
++
++  /** Load the index for a date if missing (blocking, bounded by the HTTP timeout). */
++  public static CrowdingIndex ensureLoaded(LocalDate date) {
++    var idx = peek(date);
++    if (idx != null) {
++      return idx;
++    }
++    synchronized (CrowdingIndexService.class) {
++      var h = CACHE.get(date);
++      if (h != null) {
++        return h.index;
++      }
++      return fetch(date);
++    }
++  }
++
++  private static void refreshAsync(LocalDate date) {
++    if (REFRESHING.putIfAbsent(date, Boolean.TRUE) == null) {
++      EXECUTOR.submit(() -> {
++        try {
++          fetch(date);
++        } finally {
++          REFRESHING.remove(date);
++        }
++      });
++    }
++  }
++
++  private static CrowdingIndex fetch(LocalDate date) {
++    try {
++      var req = HttpRequest
++        .newBuilder(URI.create(URL + (URL.contains("?") ? "&" : "?") + "date=" + date))
++        .timeout(Duration.ofSeconds(20))
++        .GET()
++        .build();
++      var resp = HTTP.send(req, HttpResponse.BodyHandlers.ofInputStream());
++      if (resp.statusCode() != 200) {
++        LOG.warn("Crowding index for {}: HTTP {}", date, resp.statusCode());
++        return null;
++      }
++      var idx = CrowdingIndex.read(resp.body());
++      CACHE.put(date, new Holder(idx, Instant.now()));
++      if (CACHE.size() > 8) {
++        CACHE.keySet().stream().sorted().limit(CACHE.size() - 8L).toList().forEach(CACHE::remove);
++      }
++      LOG.info("Crowding index for {} loaded: {} trips", date, idx.size());
++      return idx;
++    } catch (Exception e) {
++      LOG.warn("Crowding index for {} unavailable: {}", date, e.toString());
++      return null;
++    }
++  }
++}
+diff --git a/src/ext/java/org/opentripplanner/ext/crowding/LegCrowdingMapper.java b/src/ext/java/org/opentripplanner/ext/crowding/LegCrowdingMapper.java
+new file mode 100644
+index 0000000..f554f59
+--- /dev/null
++++ b/src/ext/java/org/opentripplanner/ext/crowding/LegCrowdingMapper.java
+@@ -0,0 +1,71 @@
++package org.opentripplanner.ext.crowding;
++
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import org.opentripplanner.model.plan.Leg;
++import org.opentripplanner.model.plan.ScheduledTransitLeg;
++
++/** Builds the GraphQL {@code Leg.crowding} value for a scheduled transit leg. */
++public final class LegCrowdingMapper {
++
++  private LegCrowdingMapper() {}
++
++  public static Map<String, Object> map(Leg leg) {
++    if (!(leg instanceof ScheduledTransitLeg st) || st.getBoardStopPosInPattern() == null) {
++      return null;
++    }
++    var idx = CrowdingIndexService.ensureLoaded(st.getServiceDate());
++    if (idx == null) {
++      return null;
++    }
++    var e = idx.get(st.getTrip().getId().getId());
++    var pattern = st.getTripPattern();
++    if (e == null || e.numberOfStops() != pattern.numberOfStops()) {
++      return null;
++    }
++    int b = st.getBoardStopPosInPattern();
++    int a = st.getAlightStopPosInPattern();
++    List<Map<String, Object>> segments = new ArrayList<>();
++    int worst = -1;
++    for (int k = b; k < a; k++) {
++      int lvl = e.level(k);
++      var seg = new LinkedHashMap<String, Object>();
++      seg.put("fromStop", pattern.getStop(k).getName().toString());
++      seg.put("toStop", pattern.getStop(k + 1).getName().toString());
++      seg.put("level", lvl == CrowdingIndex.NO_DATA ? null : CrowdingIndex.LEVELS[lvl]);
++      segments.add(seg);
++      if (lvl != CrowdingIndex.NO_DATA) {
++        worst = Math.max(worst, lvl);
++      }
++    }
++    // Longest run of segments at the worst level.
++    int bestStart = -1, bestLen = 0, runStart = -1;
++    for (int k = b; k < a; k++) {
++      if (worst >= 0 && e.level(k) == worst) {
++        if (runStart < 0) {
++          runStart = k;
++        }
++        if (k - runStart + 1 > bestLen) {
++          bestLen = k - runStart + 1;
++          bestStart = runStart;
++        }
++      } else {
++        runStart = -1;
++      }
++    }
++    var out = new LinkedHashMap<String, Object>();
++    int first = e.level(b);
++    out.put("levelAtBoarding", first == CrowdingIndex.NO_DATA ? null : CrowdingIndex.LEVELS[first]);
++    out.put("worstLevel", worst < 0 ? null : CrowdingIndex.LEVELS[worst]);
++    out.put("worstFrom", bestStart < 0 ? null : pattern.getStop(bestStart).getName().toString());
++    out.put(
++      "worstTo",
++      bestStart < 0 ? null : pattern.getStop(bestStart + bestLen).getName().toString()
++    );
++    out.put("crowdingExtraSeconds", e.extraSeconds(b, a));
++    out.put("segments", segments);
++    return out;
++  }
++}
+diff --git a/src/main/java/org/opentripplanner/apis/gtfs/datafetchers/LegImpl.java b/src/main/java/org/opentripplanner/apis/gtfs/datafetchers/LegImpl.java
+index 639cb95..8bd668e 100644
+--- a/src/main/java/org/opentripplanner/apis/gtfs/datafetchers/LegImpl.java
++++ b/src/main/java/org/opentripplanner/apis/gtfs/datafetchers/LegImpl.java
+@@ -3,6 +3,7 @@ package org.opentripplanner.apis.gtfs.datafetchers;
+ import graphql.schema.DataFetcher;
+ import graphql.schema.DataFetchingEnvironment;
+ import java.util.List;
++import java.util.Map;
+ import java.util.Objects;
+ import java.util.stream.Collectors;
+ import org.locationtech.jts.geom.Geometry;
+@@ -10,9 +11,11 @@ import org.opentripplanner.apis.gtfs.GraphQLRequestContext;
+ import org.opentripplanner.apis.gtfs.generated.GraphQLDataFetchers;
+ import org.opentripplanner.apis.gtfs.generated.GraphQLTypes;
+ import org.opentripplanner.apis.gtfs.mapping.NumberMapper;
++import org.opentripplanner.ext.crowding.LegCrowdingMapper;
+ import org.opentripplanner.ext.restapi.mapping.LocalDateMapper;
+ import org.opentripplanner.ext.ridehailing.model.RideEstimate;
+ import org.opentripplanner.ext.ridehailing.model.RideHailingLeg;
++import org.opentripplanner.framework.application.OTPFeature;
+ import org.opentripplanner.framework.graphql.GraphQLUtils;
+ import org.opentripplanner.model.BookingInfo;
+ import org.opentripplanner.model.PickDrop;
+@@ -244,6 +247,12 @@ public class LegImpl implements GraphQLDataFetchers.GraphQLLeg {
+     return environment -> getSource(environment).isTransitLeg();
+   }
+ 
++  /** Crowding on this leg from the crowding index (sandbox feature Crowding), or null. */
++  public DataFetcher<Map<String, Object>> crowding() {
++    return environment ->
++      OTPFeature.Crowding.isOn() ? LegCrowdingMapper.map(getSource(environment)) : null;
++  }
++
+   @Override
+   public DataFetcher<Trip> trip() {
+     return environment -> getSource(environment).getTrip();
+diff --git a/src/main/java/org/opentripplanner/apis/gtfs/mapping/RouteRequestMapper.java b/src/main/java/org/opentripplanner/apis/gtfs/mapping/RouteRequestMapper.java
+index 4cd6c04..7b8281c 100644
+--- a/src/main/java/org/opentripplanner/apis/gtfs/mapping/RouteRequestMapper.java
++++ b/src/main/java/org/opentripplanner/apis/gtfs/mapping/RouteRequestMapper.java
+@@ -148,6 +148,7 @@ public class RouteRequestMapper {
+         );
+         callWith.argument("unpreferred.unpreferredCost", tr::setUnpreferredCostString);
+         callWith.argument("ignoreRealtimeUpdates", tr::setIgnoreRealtimeUpdates);
++        callWith.argument("crowdingReluctance", (Double v) -> tr.withCrowdingReluctance(v));
+         callWith.argument(
+           "modeWeight",
+           (Map<String, Object> modeWeights) ->
+diff --git a/src/main/java/org/opentripplanner/framework/application/OTPFeature.java b/src/main/java/org/opentripplanner/framework/application/OTPFeature.java
+index 4ae5004..230b0bf 100644
+--- a/src/main/java/org/opentripplanner/framework/application/OTPFeature.java
++++ b/src/main/java/org/opentripplanner/framework/application/OTPFeature.java
+@@ -81,6 +81,11 @@ public enum OTPFeature {
+     "Whether the @async annotation in the GraphQL schema should lead to the fetch being executed asynchronously. This allows batch or alias queries to run in parallel at the cost of consuming extra threads."
+   ),
+   Co2Emissions(false, true, "Enable the emissions sandbox module."),
++  Crowding(
++    false,
++    true,
++    "Crowding-aware routing and `Leg.crowding` from an external crowding index."
++  ),
+   DataOverlay(
+     false,
+     true,
+diff --git a/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/CostCalculatorFactory.java b/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/CostCalculatorFactory.java
+index fef7b35..2ec8d0d 100644
+--- a/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/CostCalculatorFactory.java
++++ b/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/CostCalculatorFactory.java
+@@ -1,5 +1,7 @@
+ package org.opentripplanner.routing.algorithm.raptoradapter.transit.cost;
+ 
++import org.opentripplanner.ext.crowding.CrowdingCostCalculator;
++import org.opentripplanner.framework.application.OTPFeature;
+ import org.opentripplanner.raptor.spi.RaptorCostCalculator;
+ 
+ public class CostCalculatorFactory {
+@@ -31,6 +33,12 @@ public class CostCalculatorFactory {
+         );
+     }
+ 
++    // Crowding cost on top of everything else (sandbox feature Crowding)
++    if (OTPFeature.Crowding.isOn() && generalizedCostParameters.crowdingReluctance() > 0.0) {
++      calculator =
++        new CrowdingCostCalculator<>(calculator, generalizedCostParameters.crowdingReluctance());
++    }
++
+     return calculator;
+   }
+ }
+diff --git a/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/GeneralizedCostParameters.java b/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/GeneralizedCostParameters.java
+index e1271ac..ec90acc 100644
+--- a/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/GeneralizedCostParameters.java
++++ b/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/GeneralizedCostParameters.java
+@@ -28,6 +28,7 @@ public class GeneralizedCostParameters {
+   private final AccessibilityPreferences wheelchairAccessibility;
+   private final BitSet unpreferredPatterns;
+   private final RaptorCostLinearFunction unpreferredCost;
++  private final double crowdingReluctance;
+ 
+   /**
+    * Default constructor defines default values. These defaults are overridden by defaults in the
+@@ -43,6 +44,7 @@ public class GeneralizedCostParameters {
+     this.wheelchairAccessibility = AccessibilityPreferences.ofOnlyAccessible();
+     this.unpreferredPatterns = new BitSet();
+     this.unpreferredCost = UNPREFERRED_COST;
++    this.crowdingReluctance = 0.0;
+   }
+ 
+   GeneralizedCostParameters(GeneralizedCostParametersBuilder builder) {
+@@ -54,6 +56,7 @@ public class GeneralizedCostParameters {
+     this.wheelchairAccessibility = builder.wheelchairAccessibility();
+     this.unpreferredPatterns = Objects.requireNonNull(builder.unpreferredPatterns());
+     this.unpreferredCost = Objects.requireNonNull(builder.unpreferredCost());
++    this.crowdingReluctance = builder.crowdingReluctance();
+   }
+ 
+   public static GeneralizedCostParametersBuilder of() {
+@@ -103,6 +106,10 @@ public class GeneralizedCostParameters {
+     return unpreferredCost;
+   }
+ 
++  public double crowdingReluctance() {
++    return crowdingReluctance;
++  }
++
+   @Override
+   public int hashCode() {
+     return Objects.hash(boardCost, transferCost, waitReluctanceFactor);
+diff --git a/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/GeneralizedCostParametersBuilder.java b/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/GeneralizedCostParametersBuilder.java
+index ffc733c..34c3ffc 100644
+--- a/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/GeneralizedCostParametersBuilder.java
++++ b/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/cost/GeneralizedCostParametersBuilder.java
+@@ -18,6 +18,7 @@ public class GeneralizedCostParametersBuilder {
+   private AccessibilityPreferences wheelchairAccessibility;
+   private BitSet unpreferredPatterns;
+   private RaptorCostLinearFunction unpreferredCost;
++  private double crowdingReluctance;
+ 
+   GeneralizedCostParametersBuilder(GeneralizedCostParameters other) {
+     this.boardCost = other.boardCost();
+@@ -28,6 +29,16 @@ public class GeneralizedCostParametersBuilder {
+     this.wheelchairAccessibility = other.wheelchairAccessibility();
+     this.unpreferredPatterns = other.unpreferredPatterns();
+     this.unpreferredCost = other.unnpreferredCost();
++    this.crowdingReluctance = other.crowdingReluctance();
++  }
++
++  public double crowdingReluctance() {
++    return crowdingReluctance;
++  }
++
++  public GeneralizedCostParametersBuilder crowdingReluctance(double crowdingReluctance) {
++    this.crowdingReluctance = crowdingReluctance;
++    return this;
+   }
+ 
+   public int boardCost() {
+diff --git a/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/mappers/GeneralizedCostParametersMapper.java b/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/mappers/GeneralizedCostParametersMapper.java
+index fdaa7e3..61dd5b0 100644
+--- a/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/mappers/GeneralizedCostParametersMapper.java
++++ b/src/main/java/org/opentripplanner/routing/algorithm/raptoradapter/transit/mappers/GeneralizedCostParametersMapper.java
+@@ -5,6 +5,8 @@ import java.util.BitSet;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
++import org.opentripplanner.ext.crowding.CrowdingIndexService;
++import org.opentripplanner.framework.application.OTPFeature;
+ import org.opentripplanner.routing.algorithm.raptoradapter.api.DefaultTripPattern;
+ import org.opentripplanner.routing.algorithm.raptoradapter.transit.cost.GeneralizedCostParameters;
+ import org.opentripplanner.routing.api.request.RouteRequest;
+@@ -34,6 +36,13 @@ public class GeneralizedCostParametersMapper {
+     builder.transitReluctanceFactors(
+       mapTransitReluctance(preferences.transit().reluctanceForMode())
+     );
++    builder.crowdingReluctance(preferences.transit().crowdingReluctance());
++    if (OTPFeature.Crowding.isOn() && preferences.transit().crowdingReluctance() > 0.0) {
++      // Make sure the search date's index is loaded before the search starts.
++      var date = request.dateTime().atZone(CrowdingIndexService.ZONE).toLocalDate();
++      CrowdingIndexService.ensureLoaded(date.minusDays(1));
++      CrowdingIndexService.ensureLoaded(date);
++    }
+     builder.wheelchairEnabled(request.wheelchair());
+     builder.wheelchairAccessibility(preferences.wheelchair().trip());
+ 
+diff --git a/src/main/java/org/opentripplanner/routing/api/request/preference/TransitPreferences.java b/src/main/java/org/opentripplanner/routing/api/request/preference/TransitPreferences.java
+index 78f3027..d93cd90 100644
+--- a/src/main/java/org/opentripplanner/routing/api/request/preference/TransitPreferences.java
++++ b/src/main/java/org/opentripplanner/routing/api/request/preference/TransitPreferences.java
+@@ -31,6 +31,7 @@ public final class TransitPreferences implements Serializable {
+   private final boolean includePlannedCancellations;
+   private final boolean includeRealtimeCancellations;
+   private final RaptorPreferences raptor;
++  private final double crowdingReluctance;
+ 
+   private TransitPreferences() {
+     this.boardSlack = this.alightSlack = DurationForEnum.of(TransitMode.class).build();
+@@ -42,6 +43,7 @@ public final class TransitPreferences implements Serializable {
+     this.includePlannedCancellations = false;
+     this.includeRealtimeCancellations = false;
+     this.raptor = RaptorPreferences.DEFAULT;
++    this.crowdingReluctance = 0.0;
+   }
+ 
+   private TransitPreferences(Builder builder) {
+@@ -55,6 +57,7 @@ public final class TransitPreferences implements Serializable {
+     this.includePlannedCancellations = builder.includePlannedCancellations;
+     this.includeRealtimeCancellations = builder.includeRealtimeCancellations;
+     this.raptor = requireNonNull(builder.raptor);
++    this.crowdingReluctance = builder.crowdingReluctance;
+   }
+ 
+   public static Builder of() {
+@@ -127,6 +130,14 @@ public final class TransitPreferences implements Serializable {
+     return unpreferredCost;
+   }
+ 
++  /**
++   * How much to avoid crowded rides: the crowding-extra ride time from the crowding index is
++   * multiplied by this and added to the generalized cost. 0 ignores crowding.
++   */
++  public double crowdingReluctance() {
++    return crowdingReluctance;
++  }
++
+   /**
+    * This is used to relax the cost when comparing transit-groups. The default is the
+    * NORMAL function({@code f(t) = t}. This is the same as not using priority-groups. The
+@@ -180,7 +191,8 @@ public final class TransitPreferences implements Serializable {
+       ignoreRealtimeUpdates == that.ignoreRealtimeUpdates &&
+       includePlannedCancellations == that.includePlannedCancellations &&
+       includeRealtimeCancellations == that.includeRealtimeCancellations &&
+-      raptor.equals(that.raptor)
++      raptor.equals(that.raptor) &&
++      Double.compare(crowdingReluctance, that.crowdingReluctance) == 0
+     );
+   }
+ 
+@@ -196,7 +208,8 @@ public final class TransitPreferences implements Serializable {
+       ignoreRealtimeUpdates,
+       includePlannedCancellations,
+       includeRealtimeCancellations,
+-      raptor
++      raptor,
++      crowdingReluctance
+     );
+   }
+ 
+@@ -213,6 +226,7 @@ public final class TransitPreferences implements Serializable {
+         DEFAULT.otherThanPreferredRoutesPenalty
+       )
+       .addObj("unpreferredCost", unpreferredCost, DEFAULT.unpreferredCost)
++      .addNum("crowdingReluctance", crowdingReluctance, DEFAULT.crowdingReluctance)
+       .addObj("relaxTransitGroupPriority", relaxTransitGroupPriority, CostLinearFunction.NORMAL)
+       .addBoolIfTrue(
+         "ignoreRealtimeUpdates",
+@@ -245,6 +259,7 @@ public final class TransitPreferences implements Serializable {
+     private boolean includePlannedCancellations;
+     private boolean includeRealtimeCancellations;
+     private RaptorPreferences raptor;
++    private double crowdingReluctance;
+ 
+     public Builder(TransitPreferences original) {
+       this.original = original;
+@@ -258,6 +273,7 @@ public final class TransitPreferences implements Serializable {
+       this.includePlannedCancellations = original.includePlannedCancellations;
+       this.includeRealtimeCancellations = original.includeRealtimeCancellations;
+       this.raptor = original.raptor;
++      this.crowdingReluctance = original.crowdingReluctance;
+     }
+ 
+     public TransitPreferences original() {
+@@ -322,6 +338,14 @@ public final class TransitPreferences implements Serializable {
+       return this;
+     }
+ 
++    public Builder withCrowdingReluctance(double crowdingReluctance) {
++      if (crowdingReluctance < 0.0) {
++        throw new IllegalArgumentException("crowdingReluctance must be >= 0");
++      }
++      this.crowdingReluctance = crowdingReluctance;
++      return this;
++    }
++
+     public Builder withRaptor(Consumer<RaptorPreferences.Builder> body) {
+       this.raptor = raptor.copyOf().apply(body).build();
+       return this;
+diff --git a/src/main/resources/org/opentripplanner/apis/gtfs/schema.graphqls b/src/main/resources/org/opentripplanner/apis/gtfs/schema.graphqls
+index daeb57d..d5aa2ed 100644
+--- a/src/main/resources/org/opentripplanner/apis/gtfs/schema.graphqls
++++ b/src/main/resources/org/opentripplanner/apis/gtfs/schema.graphqls
+@@ -1641,6 +1641,12 @@ type RideHailingEstimate {
+ }
+ 
+ type Leg {
++  """
++  How crowded the bus usually is on this ride, from the crowding index. Null when the
++  Crowding sandbox feature is off or there is no estimate for this trip.
++  """
++  crowding: LegCrowding
++
+     """
+     The date and time when this leg begins. Format: Unix timestamp in milliseconds.
+     """
+@@ -2851,6 +2857,13 @@ type QueryType {
+     Plans an itinerary from point A to point B based on the given arguments
+     """
+     plan(
++        """
++        How much to avoid crowded rides. The crowding-extra ride time (ride time weighted by
++        crowding multipliers minus clock time) is multiplied by this and added to the
++        generalized cost. 0 (default) ignores crowding. Requires the Crowding sandbox feature.
++        """
++        crowdingReluctance: Float
++
+         """
+         Date of departure or arrival in format YYYY-MM-DD. Default value: current date
+         """
+@@ -4194,3 +4207,36 @@ enum WheelchairBoarding {
+     """Wheelchair boarding is not possible at this stop."""
+     NOT_POSSIBLE
+ }
++
++"""Commuter-facing crowding level."""
++enum CrowdingLevel {
++  "Seats are usually available."
++  SEATS
++  "Usually standing room only."
++  STANDING
++  "Usually crowded."
++  CROWDED
++}
++
++"""Crowding over a transit leg."""
++type LegCrowding {
++  "Level on the first stretch after boarding."
++  levelAtBoarding: CrowdingLevel
++  "Worst level over the ride."
++  worstLevel: CrowdingLevel
++  "First stop of the longest stretch at the worst level."
++  worstFrom: String
++  "Last stop of that stretch."
++  worstTo: String
++  "Ride time weighted by crowding multipliers minus clock ride time, in seconds."
++  crowdingExtraSeconds: Int
++  "Level of each stop-to-stop stretch of the ride."
++  segments: [LegCrowdingSegment]
++}
++
++"""One stop-to-stop stretch of a leg."""
++type LegCrowdingSegment {
++  fromStop: String
++  toStop: String
++  level: CrowdingLevel
++}
+-- 
+2.54.0 (Apple Git-157)
+

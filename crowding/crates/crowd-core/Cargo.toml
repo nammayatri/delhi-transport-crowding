@@ -1,0 +1,19 @@
+[package]
+name = "crowd-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bus crowding model: ticket matching, onboard load, capacity, levels and profiles"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+csv.workspace = true
+tracing.workspace = true
+rayon.workspace = true
+rustc-hash.workspace = true
+rmp-serde.workspace = true
+zstd.workspace = true

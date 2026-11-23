@@ -1,0 +1,8 @@
+crowding/target
+web/node_modules
+web/dist
+analysis/.venv
+otp-crowding/otp-src
+data/out
+data/work.duckdb
+data/raw/tickets/*.zip
