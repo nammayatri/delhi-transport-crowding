@@ -8,6 +8,8 @@
 //! - `assigned_tickets.parquet`: every ticket matched to GTFS, for analysis.
 //! - `recon_trips.parquet`: bus trips rebuilt from tickets with a vehicle number.
 //! - `route_summary.csv`, `match_report.json`, `meta.json`.
+//! - `rt_calibration.json`: buses seen running in the live feed against the timetable, by
+//!   day type and hour, when `--rt` is given.
 
 mod table;
 
@@ -58,6 +60,10 @@ struct Args {
     /// Skip the Parquet tables (snapshot and JSON only).
     #[arg(long)]
     no_tables: bool,
+    /// Directory of saved live feed snapshots (GTFS Realtime VehiclePositions, `*.pb` or
+    /// `*.pb.gz`) used to calibrate how many buses run (`supply_source = "rt"`).
+    #[arg(long, env = "CROWD_RT_DIR")]
+    rt: Option<PathBuf>,
 }
 
 fn load_config(path: &Path, overrides: &[String]) -> Result<ModelConfig> {
@@ -127,7 +133,29 @@ fn main() -> Result<()> {
     let date_to = tickets.iter().map(|t| t.date).max().unwrap();
     tracing::info!(tickets = tickets.len(), %date_from, %date_to, "tickets in range");
 
-    let out = crowd_core::build::build(&g, &cfg, &tickets, &names)?;
+    let rt = match &args.rt {
+        Some(dir) => {
+            let c = crowd_core::rt::calibrate_dir(
+                &g,
+                &cal,
+                dir,
+                cfg.rt_route_pseudo,
+                cfg.rt_min_sched,
+            )?;
+            tracing::info!(
+                snapshots = c.snapshots,
+                first = ?c.first,
+                last = ?c.last,
+                vehicles = c.vehicles,
+                overall = c.overall,
+                placed_share = c.placed_share,
+                "live feed calibration"
+            );
+            Some(c)
+        }
+        None => None,
+    };
+    let out = crowd_core::build::build(&g, &cfg, &tickets, &names, rt.as_ref())?;
     let snap = out.snapshot;
     snap.save(&args.out.join("snapshot.msgpack.zst"))?;
     tracing::info!(elapsed_s = t0.elapsed().as_secs_f32(), "wrote snapshot");
@@ -149,7 +177,15 @@ fn main() -> Result<()> {
         "fleet_calibration": out.fleet,
         "patterns_with_data": snap.patterns.iter().filter(|p| p.cells.is_some()).count(),
         "patterns_total": snap.patterns.len(),
+        "bus_km_per_day": out.bus_km,
+        "rt": rt.as_ref().map(rt_summary),
     });
+    if let Some(c) = &rt {
+        std::fs::write(
+            args.out.join("rt_calibration.json"),
+            serde_json::to_vec_pretty(&rt_detail(c))?,
+        )?;
+    }
     std::fs::write(
         args.out.join("meta.json"),
         serde_json::to_vec_pretty(&meta)?,
@@ -177,6 +213,52 @@ fn main() -> Result<()> {
     }
     tracing::info!(elapsed_s = t0.elapsed().as_secs_f32(), "done");
     Ok(())
+}
+
+fn rt_summary(c: &crowd_core::rt::RtCalibration) -> Value {
+    let rel: Vec<f64> = c
+        .route_rel
+        .iter()
+        .zip(&c.route_expected)
+        .filter(|(_, &e)| e > 0.0)
+        .map(|(&r, _)| r as f64)
+        .collect();
+    let q = |p: f64| {
+        let mut v = rel.clone();
+        v.sort_by(f64::total_cmp);
+        v.get(((v.len() as f64 - 1.0) * p).round() as usize)
+            .copied()
+    };
+    json!({
+        "snapshots": c.snapshots,
+        "first": c.first,
+        "last": c.last,
+        "dates": c.dates,
+        "vehicles_running": c.vehicles,
+        "positions_with_route": c.with_route,
+        "placed_on_route_share": c.placed_share,
+        "overall_factor": c.overall,
+        "routes_compared": rel.len(),
+        "route_factor_p10_p50_p90": [q(0.1), q(0.5), q(0.9)],
+    })
+}
+
+fn rt_detail(c: &crowd_core::rt::RtCalibration) -> Value {
+    let mut rows = Vec::new();
+    for dt in 0..N_DAYTYPES {
+        for h in 0..crowd_core::rt::HOURS {
+            let i = dt * crowd_core::rt::HOURS + h;
+            rows.push(json!({
+                "day_type": DayType::from_idx(dt).as_str(),
+                "hour": h,
+                "buses_running": c.live[i],
+                "timetable_under_way": c.sched[i],
+                "own_factor": c.observed(dt, h),
+                "factor": c.city(dt, h),
+            }));
+        }
+    }
+    json!({"summary": rt_summary(c), "by_hour": rows})
 }
 
 struct SupplyTables<'a> {

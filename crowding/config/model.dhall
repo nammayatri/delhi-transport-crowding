@@ -48,26 +48,28 @@ in  { bin_minutes = 30
     -- Share of riders assumed to get off one stop early or late (sensitivity runs).
     , alight_spread = 0.0
     , trip_split_gap_minutes = 90
-    -- Buses are counted from the tickets only: trips rebuilt from vehicle numbers,
-    -- corrected for trips that sold no tagged ticket. The timetable only gives stop order
-    -- and running times. "timetable" or "max" switch back to timetable supply.
-    , supply_source = "tickets"
+    -- Number of buses on each stretch. "rt": the timetable, scaled per route and hour to
+    -- the buses the live GTFS Realtime feed shows running (pipeline --rt <snapshots>).
+    -- "tickets": bus trips rebuilt from vehicle-tagged tickets only. "timetable" or "max"
+    -- are the other sensitivity runs.
+    , supply_source = "rt"
+    , rt_route_pseudo = 60.0
+    , rt_min_sched = 5000.0
     , capture_cap = 3.0
     -- A bus cannot carry more than crush load. Where the city-wide expansion implies
     -- more on a route (its riders use tickets more than average), lower that route's
     -- expansion so its 99th percentile weekday load stays at crush. Loads shown are
     -- capped at crush capacity and flagged over_capacity.
     , capacity_check_quantile = 0.99
-    -- Several route numbers are run by two operators, listed as two routes with their
-    -- own stops. Merge them so tickets and buses of both are counted together.
+    -- Tickets name only the route. Merge the stop patterns of one route name (full and
+    -- short-turn trips, or two operators' copies) so their tickets and buses are counted
+    -- together on the stretches they share.
     , merge_route_copies = True
     , merge_max_median_m = 300.0
     -- Tickets on a covered route whose boarding stop could not be placed still rode
     -- that route: scale the route up for them (at most 1.5x).
     , unmatched_correction_cap = 1.5
-    -- The timetable needs ~8,900 buses at once at its peak; the tickets show ~5,400
-    -- different buses running on these routes all day. Scale the timetable to the buses
-    -- actually seen, per day type (ticket-based supply still applies where higher).
+    -- "timetable" mode only: scale the timetable down to the buses seen in the tickets.
     , fleet_calibration = True
     , fleet_min_scale = 0.3
     }

@@ -12,6 +12,38 @@ export function CrowdMap() {
   const [scenario, setScenario] = useState("mid");
   const [data, setData] = useState<any>(null);
   const [onlyBusy, setOnlyBusy] = useState(false);
+  const [showLive, setShowLive] = useState(false);
+  const [live, setLive] = useState<any>(null);
+
+  // Live buses from the GTFS Realtime feed, refreshed every 30 s while shown.
+  useEffect(() => {
+    if (!showLive) return;
+    let stop = false;
+    let first = true;
+    const load = () =>
+      api
+        .liveVehicles(scenario)
+        .then((d) => {
+          if (stop) return;
+          setLive(d);
+          // Show the usual crowding for the same day type and half hour as the live buses.
+          if (first && d.feed_time) {
+            first = false;
+            const [h, m] = d.feed_time.slice(11, 16).split(":").map(Number);
+            const slot = `${String(h).padStart(2, "0")}:${m < 30 ? "00" : "30"}`;
+            const i = times.indexOf(slot);
+            if (i >= 0) setTi(i);
+            if (d.daytype) setDaytype(d.daytype);
+          }
+        })
+        .catch(() => !stop && setLive(null));
+    load();
+    const t = setInterval(load, 30_000);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, [showLive, scenario]);
 
   useEffect(() => {
     api.map(daytype, times[ti], scenario).then(setData).catch(() => setData(null));
@@ -63,6 +95,42 @@ export function CrowdMap() {
     ];
   }, [data, onlyBusy]);
 
+  const allLayers = useMemo<MapLayer[]>(() => {
+    if (!showLive || !live?.features?.length) return layers;
+    const running = live.features.filter((f: any) => f.properties.running);
+    return [
+      ...layers,
+      {
+        id: "live-buses",
+        type: "circle",
+        data: { type: "FeatureCollection", features: running },
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 2.2, 13, 5],
+          "circle-color": ["match", ["get", "level"], "crowded", LEVEL_COLOR.crowded, "standing", LEVEL_COLOR.standing, "seats", LEVEL_COLOR.seats, LEVEL_COLOR.none],
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 0.8,
+        },
+        onClick: (p) =>
+          `<b>${p.vehicle}</b> on route <b>${p.route ?? p.route_id}</b><br/>` +
+          (p.level ? `Usually about <b>${Math.round(p.load)}</b> on board here now (${p.level})<br/>` : "No crowding estimate for this stretch<br/>") +
+          (p.from ? `${p.from} → ${p.to}<br/>` : "") +
+          (p.buses_running_on_route != null
+            ? `<small>${p.buses_running_on_route} buses on this route now, usually ${p.buses_usual_on_route}</small>`
+            : ""),
+      },
+    ];
+  }, [layers, live, showLive]);
+
+  const liveCounts = useMemo(() => {
+    const c = { seats: 0, standing: 0, crowded: 0, none: 0 } as Record<string, number>;
+    for (const f of live?.features ?? []) {
+      const p = f.properties;
+      if (!p.running) continue;
+      c[p.level ?? "none"] += 1;
+    }
+    return c;
+  }, [live]);
+
   return (
     <div className="split">
       <aside className="panel">
@@ -95,6 +163,18 @@ export function CrowdMap() {
         <label className="check">
           <input type="checkbox" checked={onlyBusy} onChange={(e) => setOnlyBusy(e.target.checked)} /> Only show standing and crowded stretches
         </label>
+        <label className="check">
+          <input type="checkbox" checked={showLive} onChange={(e) => setShowLive(e.target.checked)} /> Show live buses now (GTFS Realtime)
+        </label>
+        {showLive && (
+          <p className="note">
+            {live?.feed_time
+              ? `${live.running.toLocaleString()} of ${live.buses.toLocaleString()} buses running a route at ${live.feed_time.slice(11, 16)}: ` +
+                `${liveCounts.seats} with seats, ${liveCounts.standing} standing, ${liveCounts.crowded} crowded, ${liveCounts.none} without an estimate. ` +
+                `Each dot is coloured by how full that bus usually is on its stretch at this time, adjusted for how many buses are running its route now.`
+              : "No live feed yet."}
+          </p>
+        )}
         <p className="sharehead">Riders on board in this half hour</p>
         <div className="shares">
           {(["seats", "standing", "crowded"] as const).map((k) => (
@@ -111,7 +191,7 @@ export function CrowdMap() {
         </p>
       </aside>
       <section className="mapwrap">
-        <MapView layers={layers} />
+        <MapView layers={allLayers} />
         <Legend />
       </section>
     </div>

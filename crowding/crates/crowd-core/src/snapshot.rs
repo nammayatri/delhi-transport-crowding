@@ -17,7 +17,7 @@ use crate::levels::{
 };
 use crate::profile::{Cells, Grid};
 
-pub const FORMAT_VERSION: u32 = 3;
+pub const FORMAT_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Meta {
@@ -45,6 +45,9 @@ pub struct SnapPattern {
     pub tickets: f32,
     /// Route-specific multiplier on the city-wide expansion (capacity consistency), <= 1.
     pub expansion_adj: f32,
+    /// Pattern that carries this one's estimates (itself, or the full route a short-turn
+    /// pattern is merged onto).
+    pub canon: u32,
     pub cells: Option<Cells>,
 }
 
@@ -65,6 +68,12 @@ pub struct Snapshot {
     pub patterns: Vec<SnapPattern>,
     pub trips: Vec<SnapTrip>,
     pub calendar: Calendar,
+    /// Buses usually running each route, `[route][day type * bins + bin]`.
+    #[serde(default)]
+    pub usual_buses: Vec<Vec<f32>>,
+    /// Live feed calibration behind the bus supply, if any.
+    #[serde(default)]
+    pub rt: Option<crate::rt::RtCalibration>,
 }
 
 /// Crowding over one ride: from a boarding position to an alighting position on a trip.
@@ -131,6 +140,13 @@ impl Snapshot {
         self.config
             .class(name)
             .unwrap_or(&self.config.capacity_classes[0])
+    }
+
+    /// Buses usually running a route at a time of day.
+    pub fn usual_buses(&self, route: u32, dt: DayType, secs: u32) -> Option<f64> {
+        let v = self.usual_buses.get(route as usize)?;
+        let bin = self.config.bin_of(secs % 86_400)?;
+        v.get(dt.idx() * self.grid().nb + bin).map(|&x| x as f64)
     }
 
     pub fn route_of(&self, pattern: u32) -> &Route {

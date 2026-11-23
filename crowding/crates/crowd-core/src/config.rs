@@ -36,11 +36,17 @@ pub struct ModelConfig {
     /// A gap longer than this between two tickets on one vehicle starts a new trip.
     pub trip_split_gap_minutes: u32,
     /// Where the number of buses comes from:
+    /// - "rt": the timetable scaled per route and hour to the buses the live feed shows
+    ///   running (falls back to the timetable as is without live feed snapshots);
     /// - "tickets": only bus trips rebuilt from vehicle-tagged tickets, corrected for trips
     ///   that sold no tagged ticket (the timetable only places buses along the route);
     /// - "timetable": the GTFS timetable, scaled to the fleet seen in the tickets;
-    /// - "max": the larger of the two in each bin.
+    /// - "max": the larger of timetable and tickets in each bin.
     pub supply_source: String,
+    /// Live feed calibration: pseudo-count (bus-snapshots) pulling a route's factor toward
+    /// the city factor, and the timetabled trip-snapshots an hour needs for its own factor.
+    pub rt_route_pseudo: f64,
+    pub rt_min_sched: f64,
     /// Upper bound on the correction for trips that carried no tagged ticket.
     pub capture_cap: f64,
     /// Capacity consistency: if a route's weekday load at this quantile (bus-weighted,
@@ -196,7 +202,9 @@ impl Default for ModelConfig {
             },
             alight_spread: 0.0,
             trip_split_gap_minutes: 90,
-            supply_source: "tickets".into(),
+            supply_source: "rt".into(),
+            rt_route_pseudo: 60.0,
+            rt_min_sched: 5000.0,
             capture_cap: 3.0,
             capacity_check_quantile: 0.99,
             merge_route_copies: true,
@@ -243,8 +251,11 @@ impl ModelConfig {
         );
         anyhow::ensure!(!self.capacity_classes.is_empty(), "no capacity classes");
         anyhow::ensure!(
-            matches!(self.supply_source.as_str(), "tickets" | "timetable" | "max"),
-            "supply_source must be tickets, timetable or max"
+            matches!(
+                self.supply_source.as_str(),
+                "rt" | "tickets" | "timetable" | "max"
+            ),
+            "supply_source must be rt, tickets, timetable or max"
         );
         for r in &self.capacity_rules {
             anyhow::ensure!(self.class(&r.class).is_some(), "unknown class {}", r.class);

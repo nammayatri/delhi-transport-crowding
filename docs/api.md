@@ -52,8 +52,16 @@ Each option has:
 | Method | Path | What it does |
 |---|---|---|
 | POST | `/v1/tickets` | One ticket or an array, in the published shape (`passenger_count, amount, vehicle_number, ticket_type_id, start_stop_name, end_stop_name, route, created_at, is_ac`). Returns `{accepted, rejected}`. |
-| GET | `/v1/live/status` | Clock, tickets seen, routes seen. |
-| GET | `/v1/live/routes/{route_id}` | Live factor: riders now compared with usual for this route and hour. |
+| GET | `/v1/live/status` | Clock, tickets seen, routes seen, and the latest live bus positions (feed time, buses, running). |
+| GET | `/v1/live/routes/{route_id}` | Live factor for this route now: live tickets against the usual, times usual buses against buses running (`buses_running`, `buses_usual`, `supply_factor`). |
+
+## Live bus positions
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/v1/live/vehicles?scenario=&route=` | GeoJSON points, one per bus in the latest GTFS Realtime VehiclePositions feed: `vehicle` (registration), `route`, `running`, the stretch it is on (`from`, `to`), and its expected `load`, `level`, `p_seats`/`p_standing`/`p_crowded` and `confidence`, with `buses_running_on_route` and `buses_usual_on_route`. |
+| POST | `/v1/live/vehicle-positions` | Push a VehiclePositions feed (protobuf body, plain or gzip) instead of, or as well as, polling. |
+
+The service polls the feed set in `rt.url` every `rt.poll_secs` (30 s), sending the key from the environment variable named in `rt.api_key_env` (`DTS_API_KEY`) as `x-api-key`. Without the key, polling stays off and pushed feeds still work.
 
 Kafka: build with `--features kafka` and set `live.kafka.enabled`. Messages carry the same JSON.
 
@@ -62,13 +70,14 @@ Kafka: build with `--features kafka` and set `live.kafka.enabled`. Messages carr
 |---|---|---|
 | GET | `/v1/otp/crowding-index?date=` | Binary per-trip cumulative crowding cost and levels for the OpenTripPlanner patch. Add `format=json` to inspect. |
 | GET | `/gtfs-rt/trip-updates.pb?at=` | GTFS Realtime TripUpdates with `departure_occupancy_status` per stop, for trips running in the next 2 hours. Add `format=json` to inspect. |
+| GET | `/gtfs-rt/vehicle-positions.pb` | The live VehiclePositions feed re-published with `occupancy_status` and `occupancy_percentage` (load / crush capacity) filled for every running bus with an estimate. Add `format=json` for counts. |
 
 ## Operations
 | Path | Purpose |
 |---|---|
 | `/health` | Liveness. |
 | `/ready` | 200 once the snapshot is loaded. |
-| `/metrics` | Prometheus: requests, latency, live tickets, snapshot load time, build info. |
+| `/metrics` | Prometheus: requests, latency, live tickets, buses running in the live feed, snapshot load time, build info. |
 | `/v1/meta` | Model metadata and assumptions. |
 
 The snapshot file is watched and hot-reloaded when the pipeline rewrites it.

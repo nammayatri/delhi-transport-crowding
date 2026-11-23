@@ -10,6 +10,7 @@
 //!    bus class capacity, and turn that into a crowding level with a probability.
 //! 5. [`comfort`]: per-trip cumulative crowding cost, used by the journey planner.
 //! 6. [`nowcast`]: adjust the historical profile with live tickets.
+//! 7. [`rt`]: live bus positions; calibrate bus supply and place buses on their routes.
 
 // Dense [position][day type][bin] arrays read most clearly with index loops.
 #![allow(clippy::needless_range_loop)]
@@ -28,6 +29,7 @@ pub mod names;
 pub mod nowcast;
 pub mod planner;
 pub mod profile;
+pub mod rt;
 pub mod snapshot;
 pub mod stats;
 pub mod testkit;

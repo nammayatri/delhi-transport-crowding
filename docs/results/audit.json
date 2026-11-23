@@ -9,19 +9,19 @@
   "same_stop_share": 4.0235962434455425e-05,
   "vehicles": 6809,
   "tickets_per_day": {
+    "weekday": 95781.75,
     "saturday": 75404.8,
-    "sunday": 44540.0,
-    "weekday": 95781.75
+    "sunday": 44540.0
   },
   "pax_per_day": {
+    "weekday": 102302.65,
     "saturday": 81251.0,
-    "sunday": 50216.333333333336,
-    "weekday": 102302.65
+    "sunday": 50216.333333333336
   },
   "days": {
+    "weekday": 20,
     "saturday": 5,
-    "sunday": 6,
-    "weekday": 20
+    "sunday": 6
   },
   "weekday_tickets_train": 95663.53333333334,
   "weekday_tickets_test": 96136.4,
@@ -55,52 +55,50 @@
   "single_rider_share": 0.9344438979819125,
   "standard_fare_share": 0.9931536361395508,
   "fare_median_km": {
-    "non-AC 4.5": 2.8030800819396973,
-    "non-AC 9": 6.876575946807861,
-    "non-AC 13.5": 16.583377838134766,
-    "AC 9": 2.8223869800567627,
-    "AC 13.5": 6.010879039764404,
-    "AC 18": 9.365949630737305,
-    "AC 22.5": 16.690196990966797
+    "non-AC 4.5": 2.783853530883789,
+    "non-AC 9": 6.801673889160156,
+    "non-AC 13.5": 15.915568351745605,
+    "AC 9": 2.8410165309906006,
+    "AC 13.5": 5.888467788696289,
+    "AC 18": 9.198216438293457,
+    "AC 22.5": 16.341962814331055
   },
   "fare_share_in_stage": {
-    "non-AC 4.5": 0.8350124409324604,
-    "non-AC 9": 0.8419251873901661,
-    "non-AC 13.5": 0.8954228152337191,
-    "AC 9": 0.8304390587613582,
-    "AC 13.5": 0.7892431186313681,
-    "AC 18": 0.6911056051904967,
-    "AC 22.5": 0.8681755529658134
+    "non-AC 4.5": 0.8456474368978054,
+    "non-AC 9": 0.8726098775306753,
+    "non-AC 13.5": 0.8955778102846855,
+    "AC 9": 0.831489073516429,
+    "AC 13.5": 0.8070339380411166,
+    "AC 18": 0.6996428645155963,
+    "AC 22.5": 0.8564705541638309
   },
-  "fare_share_in_stage_overall": 0.8124345509203875,
+  "fare_share_in_stage_overall": 0.8205960841497254,
   "fare_km_monotonic": true,
   "match": {
-    "both stops matched": 0.68469185698342,
-    "matched after flipping direction": 0.0031641873370785332,
-    "boarding stop matched, alighting imputed": 0.08968088194104533,
-    "route not in 2025 timetable": 0.12794176645250457,
-    "boarding stop not found on route": 0.09452130728595151
+    "both stops matched": 0.8882018392131877,
+    "matched after flipping direction": 0.0015129503156179208,
+    "boarding stop matched, alighting imputed": 0.044289637989623806,
+    "route not in the timetable": 0.016569794355167918,
+    "boarding stop not found on route": 0.04942577812640264
   },
-  "matched_share": 0.7775369262615439,
-  "route_missing_share": 0.12794176645250457,
-  "stop_missing_share": 0.09452130728595151,
-  "imputed_share": 0.08968088194104533,
-  "geo_match_share_of_assigned": 0.08297963842734384,
-  "unknown_route_tickets_est": 327854,
+  "matched_share": 0.9340044275184295,
+  "route_missing_share": 0.016569794355167918,
+  "stop_missing_share": 0.04942577812640264,
+  "imputed_share": 0.044289637989623806,
+  "geo_match_share_of_assigned": 0.03594376645000307,
+  "unknown_route_tickets_est": 42446,
   "unknown_family_share": {
-    "D- family": 0.49388142282845415,
-    "other": 0.4458112452494098,
-    "OMS family": 0.060307331922136075
+    "other": 0.9910945672148141,
+    "D- family": 0.008905432785185883
   },
   "unknown_family_routes": {
-    "D- family": 291,
-    "other": 599,
-    "OMS family": 6
+    "other": 269,
+    "D- family": 11
   },
   "ticket_index_consistent": 1.0,
-  "matched_vehicle_share": 0.5101611924341444,
-  "recon_trips": 507187,
-  "tickets_per_recon_trip": 2.002087987270967,
+  "matched_vehicle_share": 0.5171284970829672,
+  "recon_trips": 604775,
+  "tickets_per_recon_trip": 2.0444495886900085,
   "expansion": {
     "high": 48.874589270170425,
     "low": 29.324753562102256,

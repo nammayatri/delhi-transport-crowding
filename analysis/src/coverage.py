@@ -292,6 +292,8 @@ def main() -> dict:
     ).row(0, named=True)
     res["supply"] = sup
     res["over_crush"] = crush
+    rt = meta.get("rt")
+    res["rt"] = rt
 
     # 4. Riders the model cannot place at all.
     res["route_not_in_timetable_share"] = rep["rejected"].get("RouteNotInGtfs", 0) / rep["tickets"]
@@ -305,6 +307,29 @@ def main() -> dict:
     # ---- markdown ---------------------------------------------------------------------------
     sat = by_dt.filter(pl.col("daytype") == "saturday").row(0, named=True)
     sun = by_dt.filter(pl.col("daytype") == "sunday").row(0, named=True)
+    if dup_ag["names"] == 0:
+        dup_text = (
+            "No route name appears twice in this timetable, so a bus cannot be matched to two copies of its "
+            "route. Each route's full and short-turn patterns share stops and are merged onto the pattern "
+            f"that covers them ({meta['route_groups'].get('patterns_merged', 0)} patterns merged)."
+        )
+    else:
+        dup_text = (
+            f"In the timetable, {dup_ag['names']} route names exist more than once ({dup_ag['multi_agency']} with two "
+            f"operators). {dup['names']} such names carry tickets, covering {pct(dup['bus_share'])} of weekday "
+            "bus-segments; their patterns are merged when their stops line up."
+        )
+    if rt:
+        lo, mid, hi = rt["route_factor_p10_p50_p90"]
+        supply_text = (
+            f"Buses come from the timetable scaled to the live feed ({rt['snapshots']} snapshots, {rt['first']} to "
+            f"{rt['last']}). The feed is from {', '.join(rt['dates'])}, the tickets from October: this assumes the same "
+            "service. Hours without snapshots use the average factor of their day type. Route factors (buses "
+            f"running against the city-wide expectation) span {lo:.2f}-{hi:.2f} (10th-90th percentile, median {mid:.2f}), "
+            f"and {pct(rt['placed_on_route_share'])} of buses with a known route were within 500 m of it."
+        )
+    else:
+        supply_text = "No live feed snapshots were given: buses come from the timetable as published."
     md = f"""
 # Coverage: where estimates are least reliable
 
@@ -363,30 +388,19 @@ busiest stop: {'; '.join(f"{r['area_stop']} ({r['where']})" for r in res['weak_a
 ## Problems the confidence label does not capture
 
 1. **Riders the model cannot place.** {pct(res['route_not_in_timetable_share'])} of tickets are on routes missing
-   from the 2025 timetable and {pct(res['stop_not_found_share'])} have a boarding stop not found on their route.
+   from the timetable and {pct(res['stop_not_found_share'])} have a boarding stop not found on their route.
    Those buses have no estimate at all, and corridors shared with them look emptier than they are. Another
    {pct(res['imputed_share'])} of tickets have an imputed alighting stop. {res['patterns_total'] - res['patterns_with_data']:,} of
    {res['patterns_total']:,} timetable patterns have no matched ticket.
-2. **Duplicate route names.** In the timetable, {dup_ag['names']} route names exist twice, and
-   {dup_ag['multi_agency']} of those pairs belong to two different operators. {dup['names']} such names carry tickets,
-   covering {pct(dup['bus_share'])} of weekday bus-segments. Tickets from one physical bus can be
-   matched to either copy. Of {twins['trips_dup_names']:,} rebuilt trips on such routes,
-   {twins['trips_with_twin']:,} ({pct(res['twin_share_of_dup_name_trips'])}) have a trip by the same vehicle on the sibling
-   `route_id` starting within an hour ({twins['trips_with_twin_30min']:,} within 30 minutes). Rebuilt trips on one
-   `route_id` are split only after a 90-minute gap, so a same-direction twin within the hour is very likely
-   the same journey counted twice (short routes could produce some genuine pairs). Ticket-based supply on these routes is therefore inflated, which pushes their loads
-   down; each copy also gets only part of the tickets.
-3. **Capture correction not identified.** On {res['capture_at_cap_routes']} routes nearly every rebuilt trip
-   carries a single tagged ticket, so the number of unseen trips is not identified and the correction sits at
-   its cap of {cap:g}x ({pct(cap_bus)} of weekday bus-segments).
-4. **Supply comes from the tickets in much of the network.** In {pct(sup['obs_used'])} of weekday bus-segments the
-   ticket-based bus count exceeds the timetable and is used instead; {pct(sup['no_timetable'])} of bus-segments are in
-   bins where the 2025 timetable has no bus at all. Where the observed count is too low (few tagged tickets),
-   the per-bus load is too high.
+2. **Duplicate route names.** {dup_text}
+3. **Bus counts.** {supply_text}
+4. **Tickets-only bus counts are not used.** On {res['capture_at_cap_routes']} routes nearly every bus trip rebuilt
+   from tickets carries a single tagged ticket, so the number of trips the tickets miss cannot be estimated from
+   the tickets themselves. This is why the bus count now comes from the timetable and the live feed; the
+   tickets-only count is kept as the `sens_tickets` sensitivity run.
 5. **Implausible loads with high confidence.** {crush['cells']:,} weekday cells exceed crush capacity,
-   {crush['high_conf']:,} of them "high confidence" (on {crush['routes_high']} routes); {crush['no_timetable']:,} of the
-   over-crush cells are in bins with no timetabled bus. Confidence counts tickets, not the reliability of the
-   bus count they are divided by, so a confidence label should be read together with the supply source.
+   {crush['high_conf']:,} of them "high confidence" (on {crush['routes_high']} routes). These are capped at crush and
+   flagged. Confidence counts tickets, not the reliability of the bus count they are divided by.
 """
     write_md("coverage", md)
     return res

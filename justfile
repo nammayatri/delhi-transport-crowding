@@ -19,16 +19,22 @@ test:
     cd crowding && cargo test
     cd otp-crowding/otp-src && mvn -q -Dprettier.skip=true -Dtest=CrowdingCostCalculatorTest -Dsurefire.failIfNoSpecifiedTests=false test
 
-# Build the crowding model from all of October.
+# Save the live bus positions every minute into data/raw/rt (needs DTS_API_KEY in .env).
+rt-collect every="60":
+    set -a && . ./.env && set +a && scripts/rt_collect.sh {{every}}
+
+# Build the crowding model from all of October, with bus supply calibrated on the saved
+# live feed snapshots (the timetable as published if there are none).
 profiles:
-    {{pipeline}} --config crowding/config/model.dhall --gtfs {{data}}/raw/gtfs/delhi-bus --tickets {{data}}/raw/tickets/October-Delhi.csv --out {{data}}/out/full
+    {{pipeline}} --config crowding/config/model.dhall --gtfs {{data}}/raw/gtfs/delhi-bus --tickets {{data}}/raw/tickets/October-Delhi.csv --out {{data}}/out/full $(test -d {{data}}/raw/rt && echo --rt {{data}}/raw/rt)
 
 # Every model variant plus the validation suite (week-to-week, sensitivity, patterns).
 validate:
     scripts/run_all_models.sh
 
+# API and web app; polls the live bus positions when DTS_API_KEY is in .env.
 serve:
-    cd crowding && DHALL_CONFIG=config/service.dhall CROWD_WEB_DIR=../web/dist target/release/crowd-service
+    if [ -f .env ]; then set -a && . ./.env && set +a; fi && cd crowding && DHALL_CONFIG=config/service.dhall CROWD_WEB_DIR=../web/dist target/release/crowd-service
 
 web-dev:
     cd web && npx vite

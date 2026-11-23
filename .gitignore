@@ -14,10 +14,14 @@ __pycache__/
 
 # OpenTripPlanner: upstream checkout and built graph (only the patch is kept)
 otp-crowding/otp-src/
-otp-crowding/graph/
+otp-crowding/graph*/
 
 # Demo recording output (the video is attached to the GitHub release)
 demo/out/
 
 .DS_Store
+.env
+
+# Credentials (live feed API key)
+api_details.md
 .env

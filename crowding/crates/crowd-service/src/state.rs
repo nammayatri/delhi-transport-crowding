@@ -18,6 +18,7 @@ use rustc_hash::FxHashMap;
 
 use crate::config::ServiceConfig;
 use crate::error::{AppError, AppResult};
+use crate::live_rt::LiveFleet;
 use crate::metrics::Metrics;
 
 pub struct Loaded {
@@ -152,6 +153,8 @@ pub struct AppState {
     pub cfg: ServiceConfig,
     pub loaded: ArcSwapOption<Loaded>,
     pub live: Mutex<Nowcast>,
+    /// Latest live bus positions, placed on routes.
+    pub fleet: ArcSwapOption<LiveFleet>,
     pub http: reqwest::Client,
     pub metrics: Metrics,
 }
@@ -181,6 +184,7 @@ impl AppState {
             cfg,
             loaded: ArcSwapOption::empty(),
             live: Mutex::new(live),
+            fleet: ArcSwapOption::empty(),
             http,
             metrics: Metrics::new(),
         }
@@ -287,9 +291,39 @@ impl AppState {
         let secs = now.time().num_seconds_from_midnight();
         // Copies of one route number (two operators) share live counts and expectations.
         let route = l.route_canon[route as usize];
-        self.live
-            .lock()
-            .factor(&l.snap, route, when.dt, now.timestamp(), secs)
+        // Live tickets count only while a ticket stream is flowing: without one, no tickets
+        // would read as an empty network.
+        let mut f = {
+            let live = self.live.lock();
+            let flowing = live.observed_total > 0
+                && now.timestamp() - live.latest_ts <= self.cfg.live.window_secs;
+            if flowing {
+                live.factor(&l.snap, route, when.dt, now.timestamp(), secs)
+            } else {
+                LiveFactor::neutral()
+            }
+        };
+        // Buses running now against the usual number: fewer buses, more riders on each.
+        let c = &self.cfg.rt;
+        if let Some(fleet) = self.fleet.load_full() {
+            let fresh = (now.timestamp() - fleet.feed_ts).abs() <= c.max_age_secs;
+            let near = (-1800..=3600).contains(&delta);
+            let usual = l.snap.usual_buses(route, when.dt, secs);
+            if c.enabled && fresh && near {
+                if let Some(u) = usual {
+                    let running = fleet.running_by_route.get(&route).copied().unwrap_or(0);
+                    if u > 0.0 || running > 0 {
+                        let k = c.pseudo_buses;
+                        let sf = ((u + k) / (running as f64 + k)).clamp(c.min_factor, c.max_factor);
+                        f.factor *= sf;
+                        f.supply_factor = sf;
+                        f.buses_live = Some(running);
+                        f.buses_usual = Some(u);
+                    }
+                }
+            }
+        }
+        f
     }
 }
 

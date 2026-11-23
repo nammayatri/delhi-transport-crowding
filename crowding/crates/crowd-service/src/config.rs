@@ -12,6 +12,7 @@ pub struct ServiceConfig {
     pub default_scenario: String,
     pub otp: OtpConfig,
     pub live: LiveConfig,
+    pub rt: RtConfig,
     pub planner: PlannerSettings,
     pub cors_allow_any: bool,
     /// Directory with the built web app to serve at `/` (empty: none).
@@ -41,6 +42,23 @@ pub struct LiveConfig {
     /// "wall": now is the wall clock. "replay": now follows the latest ingested ticket.
     pub clock: String,
     pub kafka: KafkaConfig,
+}
+
+/// Live bus positions (GTFS Realtime VehiclePositions).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RtConfig {
+    pub enabled: bool,
+    pub url: String,
+    /// Environment variable holding the API key, sent as `x-api-key` (empty: no key).
+    pub api_key_env: String,
+    pub poll_secs: u64,
+    /// A feed older than this is not used for live factors.
+    pub max_age_secs: i64,
+    /// Pseudo-count of buses pulling the supply factor toward 1, and its bounds.
+    pub pseudo_buses: f64,
+    pub min_factor: f64,
+    pub max_factor: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +92,7 @@ impl Default for ServiceConfig {
             default_scenario: "mid".into(),
             otp: OtpConfig::default(),
             live: LiveConfig::default(),
+            rt: RtConfig::default(),
             planner: PlannerSettings::default(),
             cors_allow_any: true,
             web_dir: String::new(),
@@ -103,6 +122,21 @@ impl Default for LiveConfig {
             max_factor: 2.5,
             clock: "wall".into(),
             kafka: KafkaConfig::default(),
+        }
+    }
+}
+
+impl Default for RtConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            url: "https://dts-backend.transportstack.in/api/dataset/otd/get-file?agency=delhi-buses&category=realtime_gtfs&filename=VehiclePositions.pb".into(),
+            api_key_env: "DTS_API_KEY".into(),
+            poll_secs: 30,
+            max_age_secs: 300,
+            pseudo_buses: 1.0,
+            min_factor: 0.67,
+            max_factor: 1.5,
         }
     }
 }

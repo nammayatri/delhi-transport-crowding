@@ -9,27 +9,27 @@ time-of-day shape. Shares below are of bus-segments (each bus passing each segme
 
 | daytype | high | medium | low |
 | :--- | ---: | ---: | ---: |
-| weekday | 27.2% | 31.3% | 41.5% |
-| saturday | 2.8% | 17.7% | 79.6% |
-| sunday | 1.2% | 12.3% | 86.5% |
+| weekday | 17.8% | 25.3% | 56.9% |
+| saturday | 1.3% | 10.4% | 88.3% |
+| sunday | 0.6% | 7.1% | 92.4% |
 
 Weekends rest on 5 Saturdays and 6 Sundays/holidays and far fewer
-tickets per day, so 79.6% of Saturday and 86.5% of Sunday bus-segments are low confidence.
+tickets per day, so 88.3% of Saturday and 92.4% of Sunday bus-segments are low confidence.
 Weekend crowding should be shown as indicative only.
 
 ## Weekday, by time band
 
 | band | bus_segments | high | medium | low | tickets_per_bus_segment |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| early 04:00-08:00 | 124,130 | 18.4% | 30.1% | 51.5% | 0.759 |
-| AM peak 08:00-10:00 | 211,810 | 47.5% | 27.4% | 25.1% | 1.361 |
-| midday 10:00-17:30 | 493,456 | 19.5% | 33.2% | 47.3% | 0.674 |
-| PM peak 17:30-20:00 | 213,238 | 34.4% | 31.7% | 33.9% | 1.045 |
-| late 20:00-24:00 | 179,417 | 22.0% | 31.1% | 46.9% | 0.809 |
+| early 04:00-08:00 | 270,594 | 11.1% | 23.2% | 65.7% | 0.410 |
+| AM peak 08:00-10:00 | 293,482 | 39.4% | 26.7% | 34.0% | 1.145 |
+| midday 10:00-17:30 | 963,681 | 11.4% | 25.6% | 63.0% | 0.380 |
+| PM peak 17:30-20:00 | 343,583 | 27.3% | 28.8% | 43.9% | 0.746 |
+| late 20:00-24:00 | 336,116 | 13.0% | 21.4% | 65.6% | 0.449 |
 
 `tickets_per_bus_segment` = ticketed riders crossing per bus pass per weekday. Among bins with at least a
-quarter of the peak bus count, the least covered are 06:00 (63.0% low), 14:00 (62.1% low), 13:30 (61.1% low), 14:30 (60.0% low), 13:00 (59.8% low);
-the best covered are 09:00 (22.5% low), 09:30 (23.7% low), 08:30 (24.8% low). Early morning,
+quarter of the peak bus count, the least covered are 23:00 (91.2% low), 22:30 (83.3% low), 05:30 (82.9% low), 14:00 (76.0% low), 13:30 (75.5% low);
+the best covered are 09:00 (30.3% low), 09:30 (32.0% low), 08:30 (33.4% low). Early morning,
 midday and late evening estimates lean on the prior; the peaks are where the data is.
 
 ## Where
@@ -40,84 +40,73 @@ Share of weekday bus-segments with medium or high confidence, by distance and di
 
 | ring | bus_segments | reliable | tickets_per_bus_segment |
 | :--- | ---: | ---: | ---: |
-| 0-5 km | 185,844 | 53.5% | 0.809 |
-| 5-10 km | 405,202 | 62.1% | 0.894 |
-| 10-20 km | 509,832 | 62.0% | 0.989 |
-| 20+ km | 121,173 | 39.4% | 0.548 |
+| 0-5 km | 314,109 | 39.2% | 0.501 |
+| 5-10 km | 737,281 | 46.8% | 0.538 |
+| 10-20 km | 913,217 | 46.3% | 0.647 |
+| 20+ km | 242,851 | 25.0% | 0.309 |
 
 | sector | bus_segments | reliable | tickets_per_bus_segment |
 | :--- | ---: | ---: | ---: |
-| N | 107,963 | 44.8% | 0.664 |
-| NE | 88,271 | 47.1% | 0.598 |
-| E | 93,818 | 60.9% | 0.857 |
-| SE | 100,724 | 69.9% | 1.156 |
-| S | 156,130 | 76.7% | 1.386 |
-| SW | 111,427 | 71.7% | 1.302 |
-| W | 254,200 | 52.4% | 0.708 |
-| NW | 309,517 | 53.2% | 0.712 |
+| N | 204,034 | 33.1% | 0.380 |
+| NE | 180,889 | 31.7% | 0.316 |
+| E | 200,608 | 45.6% | 0.455 |
+| SE | 166,132 | 54.5% | 0.793 |
+| S | 255,339 | 58.0% | 0.945 |
+| SW | 177,958 | 59.2% | 0.971 |
+| W | 454,136 | 38.1% | 0.450 |
+| NW | 568,362 | 38.3% | 0.428 |
 
 | ring | N | NE | E | SE | S | SW | W | NW |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 0-5 km | 33.9% | 46.2% | 63.1% | 67.6% | 65.8% | 57.9% | 60.9% | 52.4% |
-| 5-10 km | 45.6% | 49.9% | 66.0% | 71.7% | 74.0% | 71.7% | 66.5% | 55.0% |
-| 10-20 km | 57.4% | 44.0% | 44.9% | 70.4% | 81.9% | 79.5% | 51.2% | 59.2% |
-| 20+ km | 55.9% |  |  | 31.5% | 49.5% | 62.2% | 41.4% | 32.8% |
+| 0-5 km | 23.9% | 32.2% | 47.1% | 50.3% | 47.9% | 43.4% | 48.2% | 37.0% |
+| 5-10 km | 34.5% | 32.3% | 51.1% | 52.7% | 51.3% | 61.7% | 54.8% | 42.5% |
+| 10-20 km | 39.4% | 30.1% | 30.6% | 58.1% | 66.3% | 64.1% | 37.7% | 43.1% |
+| 20+ km | 38.5% |  |  | 25.8% | 34.6% | 42.7% | 26.1% | 20.6% |
 
-The S, SW, SE sectors are best covered; the N, NE, W sectors are worst. Coverage also thins
-beyond 20 km (39.4% reliable) and in the central 5 km
-(53.5%), where ticketed riders per bus pass are also lower
-(0.809 against
-0.989 in the best ring). Confidence is per route, so a central corridor
+The SW, S, SE sectors are best covered; the NE, N, W sectors are worst. Coverage also thins
+beyond 20 km (25.0% reliable) and in the central 5 km
+(39.2%), where ticketed riders per bus pass are also lower
+(0.501 against
+0.647 in the best ring). Confidence is per route, so a central corridor
 served by several lightly ticketed routes can be busy overall while each route's cells stay low confidence.
 
 ### Least reliable busy areas
 
 2 km grid cells in the top 30% by weekday bus-segments, ranked by the share of their bus-segments with
-medium or high confidence (lowest first). 0 of 101 busy grid cells
+medium or high confidence (lowest first). 0 of 120 busy grid cells
 have no medium- or high-confidence bus-segment at all.
 
 | area_stop | where | routes | bus_segments | reliable | tickets_per_bus_segment |
 | :--- | :--- | ---: | ---: | ---: | ---: |
-| Om Vihar | 16 km W of CP | 74 | 6,325 | 20.2% | 0.344 |
-| Narela Terminal | 27 km NW of CP | 69 | 5,692 | 25.5% | 0.370 |
-| Ice Factory (Rani Jhansi Road) | 4 km N of CP | 162 | 13,773 | 26.1% | 0.339 |
-| Telephone Exchange | 7 km N of CP | 96 | 10,003 | 26.5% | 0.362 |
-| B2A Janakpuri | 12 km W of CP | 156 | 9,035 | 31.7% | 0.435 |
-| ISBT Nityanand Marg | 4 km N of CP | 315 | 22,041 | 34.9% | 0.507 |
-| Nanak Piyau | 24 km W of CP | 137 | 7,825 | 35.6% | 0.558 |
-| NajafGarh Delhi Gate | 22 km W of CP | 152 | 14,232 | 40.1% | 0.499 |
-| Bank Colony | 12 km NE of CP | 69 | 8,477 | 40.6% | 0.457 |
-| B-Block Yamuna Vihar | 10 km NE of CP | 71 | 5,649 | 41.0% | 0.462 |
-| Dholi Piao | 14 km W of CP | 182 | 15,297 | 42.9% | 0.467 |
-| Model Town II | 9 km N of CP | 159 | 9,113 | 44.0% | 0.519 |
+| Rana Pratap Bagh | 7 km N of CP | 111 | 12,822 | 17.4% | 0.247 |
+| Ice Factory (Rani Jhansi Road) | 4 km N of CP | 179 | 20,409 | 17.6% | 0.234 |
+| Chhajjupur | 10 km NE of CP | 53 | 10,531 | 18.1% | 0.173 |
+| Narela Terminal | 27 km NW of CP | 79 | 10,527 | 19.4% | 0.228 |
+| Shivam Plywood | 23 km NW of CP | 98 | 7,136 | 20.1% | 0.242 |
+| Nanak Piyau | 24 km W of CP | 154 | 16,857 | 24.2% | 0.289 |
+| ISBT Nityanand Marg | 4 km N of CP | 386 | 40,056 | 24.8% | 0.292 |
+| Bawana School | 25 km NW of CP | 96 | 7,255 | 25.3% | 0.318 |
+| Mundka Village Crossing | 19 km W of CP | 121 | 11,474 | 27.0% | 0.284 |
+| Bhajanpura | 10 km NE of CP | 96 | 13,605 | 27.1% | 0.281 |
+| Bank Colony | 12 km NE of CP | 94 | 17,676 | 27.2% | 0.266 |
+| DPS Matiyala (Delhi Public School ) | 17 km W of CP | 88 | 7,658 | 27.9% | 0.461 |
 
 In words: the weakest areas are places with plenty of buses but few app tickets, named here by their
-busiest stop: Om Vihar (16 km W of CP); Narela Terminal (27 km NW of CP); Ice Factory (Rani Jhansi Road) (4 km N of CP); Telephone Exchange (7 km N of CP); B2A Janakpuri (12 km W of CP); ISBT Nityanand Marg (4 km N of CP); Nanak Piyau (24 km W of CP); NajafGarh Delhi Gate (22 km W of CP).
+busiest stop: Rana Pratap Bagh (7 km N of CP); Ice Factory (Rani Jhansi Road) (4 km N of CP); Chhajjupur (10 km NE of CP); Narela Terminal (27 km NW of CP); Shivam Plywood (23 km NW of CP); Nanak Piyau (24 km W of CP); ISBT Nityanand Marg (4 km N of CP); Bawana School (25 km NW of CP).
 
 ## Problems the confidence label does not capture
 
-1. **Riders the model cannot place.** 12.8% of tickets are on routes missing
-   from the 2025 timetable and 9.5% have a boarding stop not found on their route.
+1. **Riders the model cannot place.** 1.7% of tickets are on routes missing
+   from the timetable and 4.9% have a boarding stop not found on their route.
    Those buses have no estimate at all, and corridors shared with them look emptier than they are. Another
-   9.0% of tickets have an imputed alighting stop. 637 of
-   2,403 timetable patterns have no matched ticket.
-2. **Duplicate route names.** In the timetable, 421 route names exist twice, and
-   421 of those pairs belong to two different operators. 27 such names carry tickets,
-   covering 4.5% of weekday bus-segments. Tickets from one physical bus can be
-   matched to either copy. Of 247,661 rebuilt trips on such routes,
-   7,257 (2.9%) have a trip by the same vehicle on the sibling
-   `route_id` starting within an hour (5,290 within 30 minutes). Rebuilt trips on one
-   `route_id` are split only after a 90-minute gap, so a same-direction twin within the hour is very likely
-   the same journey counted twice (short routes could produce some genuine pairs). Ticket-based supply on these routes is therefore inflated, which pushes their loads
-   down; each copy also gets only part of the tickets.
-3. **Capture correction not identified.** On 69 routes nearly every rebuilt trip
-   carries a single tagged ticket, so the number of unseen trips is not identified and the correction sits at
-   its cap of 3x (2.2% of weekday bus-segments).
-4. **Supply comes from the tickets in much of the network.** In 39.7% of weekday bus-segments the
-   ticket-based bus count exceeds the timetable and is used instead; 19.7% of bus-segments are in
-   bins where the 2025 timetable has no bus at all. Where the observed count is too low (few tagged tickets),
-   the per-bus load is too high.
+   4.4% of tickets have an imputed alighting stop. 615 of
+   3,498 timetable patterns have no matched ticket.
+2. **Duplicate route names.** No route name appears twice in this timetable, so a bus cannot be matched to two copies of its route. Each route's full and short-turn patterns share stops and are merged onto the pattern that covers them (924 patterns merged).
+3. **Bus counts.** Buses come from the timetable scaled to the live feed (14 snapshots, 2026-11-23 19:38 to 2026-11-23 21:25). The feed is from 2026-11-23, the tickets from October: this assumes the same service. Hours without snapshots use the average factor of their day type. Route factors (buses running against the city-wide expectation) span 0.80-1.22 (10th-90th percentile, median 0.99), and 92.6% of buses with a known route were within 500 m of it.
+4. **Tickets-only bus counts are not used.** On 111 routes nearly every bus trip rebuilt
+   from tickets carries a single tagged ticket, so the number of trips the tickets miss cannot be estimated from
+   the tickets themselves. This is why the bus count now comes from the timetable and the live feed; the
+   tickets-only count is kept as the `sens_tickets` sensitivity run.
 5. **Implausible loads with high confidence.** 0 weekday cells exceed crush capacity,
-   0 of them "high confidence" (on 0 routes); 0 of the
-   over-crush cells are in bins with no timetabled bus. Confidence counts tickets, not the reliability of the
-   bus count they are divided by, so a confidence label should be read together with the supply source.
+   0 of them "high confidence" (on 0 routes). These are capped at crush and
+   flagged. Confidence counts tickets, not the reliability of the bus count they are divided by.

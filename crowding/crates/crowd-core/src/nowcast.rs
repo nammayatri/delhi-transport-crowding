@@ -36,9 +36,17 @@ impl Default for NowcastConfig {
 
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct LiveFactor {
+    /// Applied to the historical riders per bus: busier than usual and fewer buses than
+    /// usual both raise it.
     pub factor: f64,
+    /// Live and expected ticketed riders on the route in the last window.
     pub observed: f64,
     pub expected: f64,
+    /// Buses running the route now (live feed) and usually at this time.
+    pub buses_live: Option<u32>,
+    pub buses_usual: Option<f64>,
+    /// Part of `factor` from the number of buses (usual / running, shrunk and clamped).
+    pub supply_factor: f64,
 }
 
 impl LiveFactor {
@@ -47,6 +55,9 @@ impl LiveFactor {
             factor: 1.0,
             observed: 0.0,
             expected: 0.0,
+            buses_live: None,
+            buses_usual: None,
+            supply_factor: 1.0,
         }
     }
 }
@@ -110,6 +121,7 @@ impl Nowcast {
             factor: f,
             observed,
             expected,
+            ..LiveFactor::neutral()
         }
     }
 

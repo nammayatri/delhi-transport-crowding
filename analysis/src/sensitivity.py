@@ -31,7 +31,8 @@ from common import (
 SCENARIOS = [
     ("sens_spread", "alighting spread: 50% of riders get off one stop early or late"),
     ("sens_cv", "trip-to-trip load CV 0.50 instead of 0.35"),
-    ("sens_noobs", "bus supply from the timetable only (no ticket-based supply)"),
+    ("sens_timetable", "bus supply from the timetable as published (no live-feed calibration)"),
+    ("sens_tickets", "bus supply from buses seen in the tickets only (capture-corrected)"),
     ("sens_nocap", "no per-route capacity-consistency cap"),
     ("sens_shrink", "shrinkage prior weight 20 trip-days instead of 8"),
 ]
@@ -53,6 +54,16 @@ def shares(con, view: str) -> dict:
         from {view} where daytype = 'weekday'
         """,
     ).row(0, named=True)
+
+
+def supply_note(res: dict) -> str:
+    rt = res.get("rt")
+    if not rt:
+        return "no live feed snapshots were given, so this run uses the timetable as published"
+    return (
+        f"{rt['snapshots']} snapshots from {rt['first']} to {rt['last']}; {rt['vehicles_running']:,} distinct buses "
+        f"seen running; overall {rt['overall_factor']:.2f} buses running per timetabled trip under way"
+    )
 
 
 def main() -> dict:
@@ -130,20 +141,16 @@ def main() -> dict:
         )
     tab = pl.DataFrame(rows)
     res = {"rows": rows, "rederived_mid_level_match": rederive_match, "peak_share_of_bus_segments": peak_share_all}
-    noobs_bus = next(r["bus_segments"] for r in rows if r["scenario"] == "sens_noobs")
-    res["noobs_supply_ratio"] = noobs_bus / total_bus
-    nb = next(r for r in rows if r["scenario"] == "sens_noobs")
-    only_obs = q(
-        con,
-        """
-        select sum(buses_per_day * load) / sum(buses_per_day) load, sum(buses_per_day) buses
-        from seg_full f where daytype = 'weekday' and not exists (
-            select 1 from seg_sens_noobs s
-            where s.pattern = f.pattern and s.seq = f.seq and s.daytype = f.daytype and s.bin_minute = f.bin_minute)
-        """,
-    ).row(0, named=True)
-    res["observed_only_cells_load"] = only_obs["load"]
-    res["observed_only_cells_bus_share"] = only_obs["buses"] / total_bus
+    km = {r: load_json(r, "meta.json").get("bus_km_per_day", {}) for r in ["full", "sens_timetable", "sens_tickets"]}
+    res["bus_km_weekday"] = {
+        "full (live-feed calibrated)": km["full"].get("used", [0])[0],
+        "timetable": km["full"].get("timetable", [0])[0],
+        "tickets": km["full"].get("tickets", [0])[0],
+    }
+    res["rt"] = meta.get("rt")
+    for run in ["sens_timetable", "sens_tickets"]:
+        r = next(x for x in rows if x["scenario"] == run)
+        res[f"{run}_supply_ratio"] = r["bus_segments"] / total_bus
     res["max_level_change"] = max(r["level changed"] for r in rows)
     res["max_level_change_scenario"] = max(rows, key=lambda r: r["level changed"])["scenario"]
     save_json("sensitivity", res)
@@ -183,15 +190,14 @@ run's bus weights, so composition changes do not blur it. "Capped routes" is the
 expansion the capacity check lowered.
 
 Cells of `full` missing from a scenario (bus-weighted): {', '.join(f"{r['scenario']} {pct(r['cells missing'], 2)}" for r in rows if r['cells missing'] > 0) or 'none'}.
-Without ticket-based supply (`sens_noobs`) the model has {pct(res['noobs_supply_ratio'])} of the reference
-weekday bus-segments. Two things happen. (1) Cells where only rebuilt trips showed a bus drop out
-({pct(res['observed_only_cells_bus_share'])} of reference bus-segments); in `full` these carry an average load of
-{res['observed_only_cells_load']:.1f}, well above the network mean of {base['mean_load']:.1f}, i.e. the 2025 timetable
-carries buses with real riders (partly a selection effect: these cells exist only where tagged tickets were
-seen). (2) On the shared cells the ticketed rate per bus rises by
-{pct(nb['shared-cell rate ratio'] - 1)}, but the capacity check then lowers {nb['capped routes']} routes instead of
-{full_capped}, so the load rises only {pct(nb['shared-cell load ratio'] - 1)}. The mean load over the run's own cells
-therefore falls, even though each remaining bus is fuller before the cap.
+
+**Bus supply.** The reference run counts buses from the timetable, scaled per route and hour to the buses the
+live GTFS Realtime feed shows running ({supply_note(res)}). Straight-line bus-km per weekday:
+{', '.join(f"{k} {v / 1e6:.2f}M" for k, v in res['bus_km_weekday'].items())}. Using the timetable as published
+(`sens_timetable`) gives {pct(res['sens_timetable_supply_ratio'])} of the reference weekday bus-segments; counting
+buses from the tickets only (`sens_tickets`) gives {pct(res['sens_tickets_supply_ratio'])}, because many buses that
+run sell no tagged ticket, and its loads on shared cells are
+{pct(next(r for r in rows if r['scenario'] == 'sens_tickets')['shared-cell load ratio'] - 1)} higher.
 
 ## Reading
 
@@ -201,9 +207,10 @@ therefore falls, even though each remaining bus is fuller before the cap.
   of the cells that change under the high scenario are in the two peak windows, which hold
   {pct(peak_share_all)} of weekday bus-segments.
 - Ranked by level changes: {'; '.join(f"{r['scenario']} {pct(r['level changed'])}" for r in ordered)}.
-- Supply is the largest of the structural choices (see above): the ticket-based supply adds buses the
-  timetable lacks, and the capacity cap absorbs much of the difference when it is removed. The two
-  mechanisms interact, so neither should be judged alone.
+- Bus supply is the largest structural choice (see above). Counting buses from tickets alone misses the
+  buses that sell no tagged ticket and makes every bus fuller; the live feed removes most of that guesswork
+  by showing which buses actually run. The capacity cap absorbs part of any supply error, so the two
+  should be judged together.
 - The capacity cap only lowers loads on the routes it touches, so dropping it only moves cells toward
   more crowded; the alighting spread and the shrinkage weight barely matter at the network level.
 - No assumption flips the overall picture (a large majority of weekday bus-segments with seats, crowding

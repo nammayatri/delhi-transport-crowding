@@ -5,7 +5,7 @@ Writes docs/results/summary.md.
 
 from __future__ import annotations
 
-from common import num, pct, read_json, write_md
+from common import load_json, num, pct, read_json, write_md
 
 
 def main() -> None:
@@ -35,6 +35,26 @@ def main() -> None:
     sec_worst = min(sec, key=sec.get)
     sec_best_v, sec_worst_v = sec[sec_best], sec[sec_worst]
     seg_base = comp[("test model", "segment all-day average (train)")]
+    meta = load_json("full", "meta.json")
+    feed = meta["meta"].get("feed_version") or "?"
+    groups = meta.get("route_groups", {})
+    rt = meta.get("rt")
+    km = meta.get("bus_km_per_day", {})
+    if rt:
+        supply = (
+            f"Buses come from the timetable scaled per route and hour to the buses the live GTFS Realtime feed shows "
+            f"running: {rt['snapshots']} snapshots ({rt['first']} to {rt['last']}), {num(rt['vehicles_running'])} buses seen "
+            f"running, {rt['overall_factor']:.2f} running per timetabled trip under way. That is "
+            f"{km['used'][0] / 1e6:.2f}M bus-km per weekday (straight line between stops), against "
+            f"{km['tickets'][0] / 1e6:.2f}M if buses are counted from the tickets alone."
+        )
+        limit1 = (
+            f"(1) The live feed is from {', '.join(rt['dates'])} while the tickets are from October; hours without "
+            f"snapshots use the average factor of their day type (or of all snapshots)."
+        )
+    else:
+        supply = "No live feed snapshots were given: buses come from the timetable as published."
+        limit1 = "(1) Bus supply is the timetable as published, not checked against the live feed."
 
     md = f"""
 # Crowding model validation: summary
@@ -44,10 +64,10 @@ All numbers come from `analysis/run_all.py` (details in the other files in `docs
 **Data.** {num(a['rows'])} mobile/QR tickets for October 2026 (one ticket type; discounted digital fares on
 {pct(a['standard_fare_share'])} of tickets). About {num(a['ticketed_pax_per_weekday'])} ticketed riders per weekday
 against an assumed 4M weekday boardings, so the expansion factor is {e['mid']:.0f} (range {e['low']:.0f}-{e['high']:.0f}).
-{pct(a['matched_share'], 0)} of tickets were matched to the 2025 timetable; {pct(a['route_missing_share'], 0)} are on
+{pct(a['matched_share'], 0)} of tickets were matched to the static timetable (feed {feed}); {pct(a['route_missing_share'], 0)} are on
 routes it lacks and {pct(a['stop_missing_share'], 0)} board at a stop not found on the route. {pct(a['vehicle_share'], 0)} carry a
 vehicle number, but rebuilt trips hold only {a['tickets_per_recon_trip']:.1f} tickets each, so loads are pooled over
-all buses in a 30-minute bin.
+all buses in a 30-minute bin. {supply}
 
 **Stop matching looks right.** Trip length rises with every fare step: AC Rs 9 / 13.5 / 18 / 22.5 give median
 trips of {fm['AC 9']:.1f} / {fm['AC 13.5']:.1f} / {fm['AC 18']:.1f} / {fm['AC 22.5']:.1f} km; non-AC Rs 4.5 / 9 / 13.5 give
@@ -88,16 +108,17 @@ or crowded ranges {pct(am_range[0])}-{pct(am_range[1])} across runs: quote it wi
 the {'/'.join(c['best_sectors'])} sectors and weakest in the {'/'.join(c['worst_sectors'])} sectors and beyond 20 km
 ({pct(c['reliable_by_ring']['20+ km'], 0)}); weakest busy areas: {', '.join(f"{w['area_stop']} ({w['where']})" for w in c['weak_areas'][:4])}.
 
-**Fixed during validation.** Route numbers run by two operators were first counted as two
-routes, double counting buses; they are now merged (only {dn['names']} names stay separate, as their
-stops do not line up; {pct(c['twin_share_of_dup_name_trips'], 0)} same-vehicle twins remain). Loads above crush capacity
-are now capped at crush and flagged ({num(oc['high_conf'])} high-confidence cells remain above crush), and a bin
-whose bus count rests on tickets alone or on few buses can no longer be high confidence.
+**Fixed during validation.** Tickets name only the route, so the stop patterns of one route (full and
+short-turn trips) are merged onto the pattern that covers them ({groups.get('patterns_merged', 0)} merged,
+{groups.get('patterns_kept_apart', 0)} kept apart because their stops do not line up). Counting buses from tickets alone
+missed many buses that ran; the live feed now sets the bus count. Loads above crush capacity
+are capped at crush and flagged ({num(oc['high_conf'])} high-confidence cells remain above crush), and a bin
+whose bus count rests on few buses can no longer be high confidence.
 
 **Known limits.**
-(1) The capture correction sits at its cap on {int(c['capture_at_cap_routes'])} routes ({pct(c['capture_at_cap_bus_share'], 0)} of weekday bus-segments).
+{limit1}
 (2) The network carries {num(p['model_weekday_boardings'])} weekday boardings: tickets on routes missing from the
-2025 timetable (13%) are not placed.
+timetable ({pct(a['route_missing_share'], 0)}) or boarding at a stop not on the route ({pct(a['stop_missing_share'], 0)}) are scaled in per route, not placed.
 (3) One city-wide expansion factor: corridor rankings reflect app adoption as well as ridership.
 (4) Vehicle-number share jumps to {pct(a['vehicle_share_day_max'], 0)} on {a['vehicle_share_day_max_date']} (about half on other days).
 """

@@ -12,44 +12,45 @@ scenario (a high-ridership run would cap more routes, so its crowding is an uppe
 
 | scenario | change | seats | standing | crowded | AM peak not seats | mean load | level changed vs full | more crowded | less crowded | load vs full (shared cells) | capped routes |
 | :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| full (reference) | mid ridership 4M weekday boardings (factor 39.1) | 82.6% | 13.2% | 4.2% | 35.6% | 22.86 | 0.0% | 0.0% | 0.0% | 1.000 | 645 |
-| ridership low | 3M weekday boardings (factor 29.3) | 91.0% | 8.7% | 0.4% | 22.1% | 17.17 | 12.2% | 0.0% | 12.2% | 0.751 | 645 |
-| ridership high | 5M weekday boardings (factor 48.9) | 74.7% | 16.3% | 9.0% | 45.5% | 28.20 | 12.7% | 12.7% | 0.0% | 1.233 | 645 |
-| sens_spread | alighting spread: 50% of riders get off one stop early or late | 82.6% | 13.2% | 4.2% | 35.7% | 22.87 | 1.2% | 0.6% | 0.6% | 1.000 | 637 |
-| sens_cv | trip-to-trip load CV 0.50 instead of 0.35 | 84.0% | 12.6% | 3.4% | 33.6% | 22.86 | 2.2% | 0.0% | 2.2% | 1.000 | 645 |
-| sens_noobs | bus supply from the timetable only (no ticket-based supply) | 93.0% | 5.3% | 1.7% | 20.6% | 12.03 | 13.9% | 6.3% | 7.6% | 0.901 | 706 |
-| sens_nocap | no per-route capacity-consistency cap | 69.8% | 16.2% | 14.0% | 48.9% | 31.60 | 19.4% | 19.4% | 0.0% | 1.382 | 0 |
-| sens_shrink | shrinkage prior weight 20 trip-days instead of 8 | 81.7% | 13.9% | 4.4% | 36.2% | 23.75 | 2.3% | 1.7% | 0.6% | 1.039 | 592 |
+| full (reference) | mid ridership 4M weekday boardings (factor 39.1) | 91.9% | 6.2% | 1.9% | 25.1% | 13.19 | 0.0% | 0.0% | 0.0% | 1.000 | 841 |
+| ridership low | 3M weekday boardings (factor 29.3) | 95.9% | 3.8% | 0.3% | 14.7% | 9.91 | 5.6% | 0.0% | 5.6% | 0.752 | 841 |
+| ridership high | 5M weekday boardings (factor 48.9) | 87.8% | 8.1% | 4.1% | 33.3% | 16.30 | 6.2% | 6.2% | 0.0% | 1.236 | 841 |
+| sens_spread | alighting spread: 50% of riders get off one stop early or late | 91.9% | 6.2% | 1.9% | 25.3% | 13.19 | 0.6% | 0.3% | 0.3% | 0.999 | 836 |
+| sens_cv | trip-to-trip load CV 0.50 instead of 0.35 | 92.6% | 5.8% | 1.6% | 23.6% | 13.22 | 1.0% | 0.0% | 1.0% | 1.002 | 843 |
+| sens_timetable | bus supply from the timetable as published (no live-feed calibration) | 92.4% | 5.8% | 1.8% | 24.2% | 12.58 | 1.3% | 0.5% | 0.8% | 0.975 | 765 |
+| sens_tickets | bus supply from buses seen in the tickets only (capture-corrected) | 82.6% | 13.2% | 4.2% | 35.4% | 22.43 | 10.2% | 8.7% | 1.5% | 1.521 | 842 |
+| sens_nocap | no per-route capacity-consistency cap | 83.0% | 9.0% | 8.0% | 38.6% | 19.62 | 12.5% | 12.4% | 0.1% | 1.487 | 0 |
+| sens_shrink | shrinkage prior weight 20 trip-days instead of 8 | 91.1% | 6.9% | 2.1% | 26.7% | 14.19 | 1.7% | 1.3% | 0.4% | 1.074 | 723 |
 
 "Load vs full (shared cells)" compares bus-weighted mean load on the cells both runs have, with the `full`
 run's bus weights, so composition changes do not blur it. "Capped routes" is the number of routes whose
 expansion the capacity check lowered.
 
-Cells of `full` missing from a scenario (bus-weighted): sens_noobs 9.19%.
-Without ticket-based supply (`sens_noobs`) the model has 138.3% of the reference
-weekday bus-segments. Two things happen. (1) Cells where only rebuilt trips showed a bus drop out
-(9.2% of reference bus-segments); in `full` these carry an average load of
-20.1, well above the network mean of 22.9, i.e. the 2025 timetable
-carries buses with real riders (partly a selection effect: these cells exist only where tagged tickets were
-seen). (2) On the shared cells the ticketed rate per bus rises by
-62.7%, but the capacity check then lowers 706 routes instead of
-645, so the load rises only -9.9%. The mean load over the run's own cells
-therefore falls, even though each remaining bus is fuller before the cap.
+Cells of `full` missing from a scenario (bus-weighted): sens_tickets 5.77%.
+
+**Bus supply.** The reference run counts buses from the timetable, scaled per route and hour to the buses the
+live GTFS Realtime feed shows running (14 snapshots from 2026-11-23 19:38 to 2026-11-23 21:25; 5,461 distinct buses seen running; overall 0.89 buses running per timetabled trip under way). Straight-line bus-km per weekday:
+full (live-feed calibrated) 1.24M, timetable 1.40M, tickets 0.74M. Using the timetable as published
+(`sens_timetable`) gives 112.8% of the reference weekday bus-segments; counting
+buses from the tickets only (`sens_tickets`) gives 63.8%, because many buses that
+run sell no tagged ticket, and its loads on shared cells are
+52.1% higher.
 
 ## Reading
 
 - The ridership assumption matters most: it moves every load by the same factor. Going from 4M to 3M or 5M
-  weekday boardings changes the level of 12.2% / 12.7% of
-  weekday bus-segments. Most of the network stays "seats" under all scenarios; 49.3%
+  weekday boardings changes the level of 5.6% / 6.2% of
+  weekday bus-segments. Most of the network stays "seats" under all scenarios; 56.5%
   of the cells that change under the high scenario are in the two peak windows, which hold
-  34.8% of weekday bus-segments.
-- Ranked by level changes: sens_nocap 19.4%; sens_noobs 13.9%; ridership high 12.7%; ridership low 12.2%; sens_shrink 2.3%; sens_cv 2.2%; sens_spread 1.2%.
-- Supply is the largest of the structural choices (see above): the ticket-based supply adds buses the
-  timetable lacks, and the capacity cap absorbs much of the difference when it is removed. The two
-  mechanisms interact, so neither should be judged alone.
+  28.9% of weekday bus-segments.
+- Ranked by level changes: sens_nocap 12.5%; sens_tickets 10.2%; ridership high 6.2%; ridership low 5.6%; sens_shrink 1.7%; sens_timetable 1.3%; sens_cv 1.0%; sens_spread 0.6%.
+- Bus supply is the largest structural choice (see above). Counting buses from tickets alone misses the
+  buses that sell no tagged ticket and makes every bus fuller; the live feed removes most of that guesswork
+  by showing which buses actually run. The capacity cap absorbs part of any supply error, so the two
+  should be judged together.
 - The capacity cap only lowers loads on the routes it touches, so dropping it only moves cells toward
   more crowded; the alighting spread and the shrinkage weight barely matter at the network level.
 - No assumption flips the overall picture (a large majority of weekday bus-segments with seats, crowding
   concentrated in the AM peak), but the share of peak cells shown as standing or crowded ranges from
-  20.6% to 48.9% across these runs, so the absolute
+  14.7% to 38.6% across these runs, so the absolute
   crowding level should be presented with its range.

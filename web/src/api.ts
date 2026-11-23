@@ -104,6 +104,7 @@ export const api = {
     get<any>(`/v1/operator/hotspots?daytype=${daytype}&from=${from}&to=${to}&scenario=${scenario}&limit=25`),
   operatorRoutes: (daytype: string, from: string, to: string, scenario: string) =>
     get<any>(`/v1/operator/routes?daytype=${daytype}&from=${from}&to=${to}&scenario=${scenario}&limit=40`),
+  liveVehicles: (scenario: string) => get<any>(`/v1/live/vehicles?scenario=${scenario}`),
   profile: (routeId: string, daytype: string, scenario: string) =>
     get<any>(`/v1/routes/${encodeURIComponent(routeId)}/profile?daytype=${daytype}&scenario=${scenario}`),
 };

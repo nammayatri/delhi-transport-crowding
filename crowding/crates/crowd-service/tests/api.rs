@@ -126,9 +126,9 @@ async fn otp_index_and_gtfs_rt() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert!(resp.status().is_success());
-    // Buses are counted from the tickets only: the fixture's tickets are all on the
-    // 08:00 bus, so only that trip has a crowding estimate.
-    assert_eq!(resp.headers().get("X-Crowding-Trips").unwrap(), "1");
+    // Without live feed snapshots the buses come from the timetable: all six trips of
+    // the route with tickets (34UP) carry an estimate, none of 34DOWN.
+    assert_eq!(resp.headers().get("X-Crowding-Trips").unwrap(), "6");
     let body = test::read_body(resp).await;
     let mut raw = Vec::new();
     flate2::read::GzDecoder::new(&body[..])
@@ -216,4 +216,79 @@ async fn neutral_live_factor_without_live_data() {
     let app = test::init_service(crowd_service::app(state())).await;
     let v = get_json!(app, "/v1/live/routes/r1");
     assert_eq!(v["live_factor"], 1.0);
+}
+
+#[actix_web::test]
+async fn live_bus_positions_are_placed_and_get_crowding() {
+    use crowd_core::rt::{
+        FeedEntity, FeedHeader, FeedMessage, Position, TripDescriptor, VehicleDescriptor,
+        VehiclePosition,
+    };
+    use prost::Message;
+    // Tuesday 6 Oct 2026, 08:05 IST.
+    let ts = chrono::DateTime::parse_from_rfc3339("2026-10-06T08:05:00+05:30")
+        .unwrap()
+        .timestamp() as u64;
+    let bus = |id: &str, lat: f32, lon: f32, speed: f32| FeedEntity {
+        id: id.into(),
+        vehicle: Some(VehiclePosition {
+            trip: Some(TripDescriptor {
+                route_id: Some("r1".into()),
+                start_time: Some("08:00:00".into()),
+                ..Default::default()
+            }),
+            position: Some(Position {
+                latitude: lat,
+                longitude: lon,
+                bearing: None,
+                speed: Some(speed),
+            }),
+            timestamp: Some(ts),
+            vehicle: Some(VehicleDescriptor {
+                label: Some(id.into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+    };
+    let feed = FeedMessage {
+        header: FeedHeader {
+            gtfs_realtime_version: "2.0".into(),
+            incrementality: Some(0),
+            timestamp: Some(ts),
+        },
+        entity: vec![
+            // Between Laxmi Nagar and ITO, moving: on the crowded stretch.
+            bus("DL1PC0001", 28.6297, 77.2600, 7.0),
+            // Parked at Anand Vihar ISBT, the first stop: not running yet.
+            bus("DL1PC0002", 28.6469, 77.3159, 0.0),
+        ],
+    };
+    let app = test::init_service(crowd_service::app(state())).await;
+    let req = test::TestRequest::post()
+        .uri("/v1/live/vehicle-positions")
+        .set_payload(feed.encode_to_vec())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let v = get_json!(app, "/v1/live/vehicles");
+    assert_eq!(v["buses"], 2);
+    assert_eq!(v["running"], 1);
+    let f = v["features"].as_array().unwrap();
+    let moving = f
+        .iter()
+        .find(|x| x["properties"]["vehicle"] == "DL1PC0001")
+        .unwrap();
+    assert_eq!(moving["properties"]["running"], true);
+    assert_eq!(moving["properties"]["level"], "crowded");
+    assert_eq!(moving["properties"]["from"], "Laxmi Nagar Crossing");
+    let parked = f
+        .iter()
+        .find(|x| x["properties"]["vehicle"] == "DL1PC0002")
+        .unwrap();
+    assert_eq!(parked["properties"]["running"], false);
+    assert!(parked["properties"]["level"].is_null());
+    let v = get_json!(app, "/gtfs-rt/vehicle-positions.pb?format=json");
+    assert_eq!(v["entities"], 2);
+    assert_eq!(v["with_occupancy"], 1);
 }

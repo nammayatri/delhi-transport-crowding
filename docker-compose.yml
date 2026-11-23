@@ -12,6 +12,7 @@ services:
       - --gtfs=/data/raw/gtfs/delhi-bus
       - --tickets=/data/raw/tickets/October-Delhi.csv
       - --out=/data/out/full
+      - --rt=/data/raw/rt
 
   crowd-service:
     build: .
@@ -20,6 +21,8 @@ services:
     environment:
       CROWD_CLOCK: replay
       OTP_ENABLED: "${OTP_ENABLED:-False}"
+      # Live bus positions: the key comes from the shell or .env, never from a file in the image.
+      DTS_API_KEY: "${DTS_API_KEY:-}"
       OTP_GRAPHQL_URL: http://otp:8080/otp/gtfs/v1
 
   otp:

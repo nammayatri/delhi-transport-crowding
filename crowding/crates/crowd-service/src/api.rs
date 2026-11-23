@@ -117,9 +117,11 @@ pub fn summarise_leg(l: LegCrowding, live_factor: f64) -> LegSummary {
 }
 
 /// Skip the second operator's copy of a route number; the model counts it on the first.
+/// A pattern whose estimates are carried by another (a short-turn pattern merged onto its
+/// full route, or a second operator's copy): skipped where stretches are summed.
 fn is_copy(l: &Loaded, pattern: usize) -> bool {
     let r = l.snap.patterns[pattern].route as usize;
-    l.route_canon[r] as usize != r
+    l.snap.patterns[pattern].canon as usize != pattern || l.route_canon[r] as usize != r
 }
 
 #[get("/health")]
@@ -793,6 +795,12 @@ pub async fn live_status(st: State) -> AppResult<HttpResponse> {
         "enabled": st.cfg.live.enabled, "clock": st.cfg.live.clock, "now": now,
         "tickets": live.observed_total, "routes": live.routes_seen(), "latest_ts": live.latest_ts,
         "window_secs": st.cfg.live.window_secs,
+        "bus_positions": st.fleet.load_full().map(|f| json!({
+            "feed_time": chrono::DateTime::from_timestamp(f.feed_ts, 0).map(|t| t.with_timezone(&ist())),
+            "buses": f.buses.len(),
+            "running": f.running_by_route.values().sum::<u32>(),
+            "routes_running": f.running_by_route.len(),
+        })),
     })))
 }
 
@@ -808,6 +816,7 @@ pub async fn live_route(st: State, path: web::Path<String>) -> AppResult<HttpRes
     Ok(HttpResponse::Ok().json(json!({
         "route_id": path.as_str(), "route": l.snap.routes[ri as usize].name(), "now": st.now(), "daytype": when.dt,
         "live_factor": f.factor, "observed_tickets": f.observed, "expected_tickets": f.expected,
-        "meaning": "riders now vs the usual for this route, day type and hour (1.0 = usual)",
+        "buses_running": f.buses_live, "buses_usual": f.buses_usual, "supply_factor": f.supply_factor,
+        "meaning": "riders per bus now vs the usual for this route, day type and hour (1.0 = usual): live tickets against the usual, times usual buses against buses running",
     })))
 }

@@ -30,7 +30,7 @@ DOCS = ROOT / "docs"
 FIG = DOCS / "figures"
 RES = DOCS / "results"
 
-RUNS = ["full", "train", "test", "sens_spread", "sens_cv", "sens_noobs", "sens_nocap", "sens_shrink"]
+RUNS = ["full", "train", "test", "sens_spread", "sens_cv", "sens_timetable", "sens_tickets", "sens_nocap", "sens_shrink"]
 
 # Connaught Place, the reference point for inbound / outbound.
 CP_LAT, CP_LON = 28.6315, 77.2167

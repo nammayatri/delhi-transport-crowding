@@ -336,7 +336,7 @@ def main() -> dict:
         ("both stops matched", bm.get("Exact", 0)),
         ("matched after flipping direction", bm.get("DirectionFixed", 0)),
         ("boarding stop matched, alighting imputed", bm.get("Imputed", 0)),
-        ("route not in 2025 timetable", rj.get("RouteNotInGtfs", 0)),
+        ("route not in the timetable", rj.get("RouteNotInGtfs", 0)),
         ("boarding stop not found on route", rj.get("StartStopNotOnRoute", 0)),
     ]
     for k, v in rj.items():
@@ -366,7 +366,7 @@ def main() -> dict:
     ax.grid(axis="x", visible=True)
     titles(
         ax,
-        f"{res['matched_share']:.0%} of tickets were matched to the 2025 timetable",
+        f"{res['matched_share']:.0%} of tickets were matched to the static timetable",
         "Blue = used by the model, grey = dropped",
     )
     fig_match = save(fig, "audit_match_outcome")
@@ -407,7 +407,7 @@ def main() -> dict:
     dshare = res["unknown_family_share"].get("D- family", 0) + res["unknown_family_share"].get("OMS family", 0)
     titles(
         ax,
-        f"Routes missing from the 2025 timetable: D- and OMS families hold {dshare:.0%} of those tickets",
+        f"Routes missing from the timetable: D- and OMS families hold {dshare:.0%} of those tickets",
         "Top 20 ticket route names with no timetable match",
     )
     fig_unk = save(fig, "audit_unknown_routes")
@@ -440,11 +440,12 @@ def main() -> dict:
         pl.col("stage_km").alias("assumed stage km"),
         pl.col("share_in_stage").alias("share in stage"),
     ).sort("bus", "fare (Rs/pax)", descending=[True, False])
+    feed_version = meta["meta"].get("feed_version") or "?"
     md = f"""
 # Data audit
 
 Source: `data/raw/tickets/October-Delhi.csv` ({n_rows:,} rows, {comp['pax']:,} passengers), matched by the
-pipeline to the July 2025 static timetable (run `full`, Oct 1-31 2026).
+pipeline to the static timetable, feed {feed_version} (run `full`, Oct 1-31 2026).
 
 ## What the file is
 
@@ -487,7 +488,8 @@ Daily share ranges from {pct(vmin)} to {pct(vmax)}. It is flat near half except 
 {', '.join(f"{d} ({pct(v)})" for d, v in res['vehicle_share_high_days'].items())}: something in how vehicle
 numbers were captured changed for those days (cause unknown from the data). Rebuilt trips and the capture
 correction are pooled over all days of a day type, so the jump is diluted in the supply estimate, but it is
-one reason the observed bus counts are not perfectly comparable day to day.
+one reason bus counts rebuilt from tickets are not comparable day to day (the model's bus counts come from
+the timetable and the live feed; rebuilt trips are kept as a sensitivity run).
 
 {pct(comp['veh_share'])} of tickets carry a vehicle number (AC {pct(res['vehicle_share_by_ac'].get('AC'))},
 non-AC {pct(res['vehicle_share_by_ac'].get('non-AC'))}); {comp['vehicles']:,} distinct vehicles appear in the month,
@@ -538,9 +540,9 @@ Ticket route names that never matched (approximation of "route not in timetable"
 {md_table(unk.with_columns((pl.col('tickets') / unk_total).alias('share')), {'share': pct})}
 
 The D- and OMS families make up {pct(dshare)} of these tickets; the rest are {res['unknown_family_routes'].get('other', 0)}
-other names, led by {', '.join(top.filter(pl.col('family') == 'other')['route'].head(5).to_list())}, which the July 2025
-feed does not list under those names. Their riders are not in the model at all:
-no crowding estimate exists for those buses, and the corridors they serve look emptier than they are.
+other names, led by {', '.join(top.filter(pl.col('family') == 'other')['route'].head(5).to_list())}, which the
+feed does not list under those names. Their riders are not placed on any route: no crowding estimate
+exists for those buses, and the corridors they serve look emptier than they are.
 
 ## Index check
 

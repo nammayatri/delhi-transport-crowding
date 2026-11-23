@@ -89,5 +89,5 @@ pub fn fixture_snapshot() -> Snapshot {
             tickets.push(raw.parse(&mut names, ist()).unwrap());
         }
     }
-    build(&g, &cfg, &tickets, &names).unwrap().snapshot
+    build(&g, &cfg, &tickets, &names, None).unwrap().snapshot
 }

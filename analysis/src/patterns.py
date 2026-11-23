@@ -553,14 +553,13 @@ peak windows, {pct(pk_all['seats'])} of bus-km show seats, {pct(pk_all['standing
   whose riders use the app more than average ranks higher than its true ridership; the per-route
   capacity cap only corrects the extreme cases. Nothing in this data can separate app adoption from
   ridership, so the ranking should be read as "busiest for app users".
-- Several route names are run by two operators and appear twice in the timetable (two `route_id`s with
-  the same name). Tickets of one physical bus can be split between the two, and both copies then count
-  the same rebuilt bus trips as supply. Route names in the tables above that have this issue:
-  {', '.join(dup_in_tables) if dup_in_tables else 'none'}. See `coverage.md` for the size of the issue.
+- Route names that appear more than once in the timetable (two `route_id`s with the same name) can split one
+  bus's tickets between the copies. Route names in the tables above that have this issue:
+  {', '.join(dup_in_tables) if dup_in_tables else 'none'}. See `coverage.md`.
 - {res['peak_routes_over_crush']} of the 15 heaviest per-route peaks above exceed crush capacity (85-90), in
-  bins with only {oc_bmin:.1f}-{oc_bmax:.1f} buses per day. These cells are "high confidence" because confidence counts tickets only; a timetable
-  that lists too few buses in the bin (and too few vehicle-tagged trips to correct it) inflates the
-  per-bus load. Confidence does not capture supply uncertainty.
+  bins with only {oc_bmin:.1f}-{oc_bmax:.1f} buses per day. These cells are "high confidence" because confidence counts tickets only; a bus count that
+  is too low for the bin (timetable or live-feed factor) inflates the per-bus load, and such loads are capped at
+  crush. Confidence does not capture supply uncertainty.
 """
     write_md("patterns", md)
     return res

@@ -26,6 +26,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
     tokio::spawn(reload_loop(state.clone()));
+    tokio::spawn(crowd_service::live_rt::run(state.clone()));
     if cfg.live.kafka.enabled {
         tokio::spawn(crowd_service::kafka::run(state.clone()));
     }

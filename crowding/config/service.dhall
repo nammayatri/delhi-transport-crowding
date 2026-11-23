@@ -21,6 +21,20 @@
   , clock = env:CROWD_CLOCK as Text ? "replay"
   , kafka = { enabled = False, brokers = "localhost:9092", topic = "tickets", group_id = "crowd-service" }
   }
+, rt =
+  -- Live bus positions (GTFS Realtime). The API key is read from the environment
+  -- variable named here, never from this file.
+  { enabled = env:RT_ENABLED ? True
+  , url = "https://dts-backend.transportstack.in/api/dataset/otd/get-file?agency=delhi-buses&category=realtime_gtfs&filename=VehiclePositions.pb"
+  , api_key_env = "DTS_API_KEY"
+  , poll_secs = 30
+  , max_age_secs = 300
+  -- Fewer buses than usual on a route raises riders per bus: usual / running, shrunk by
+  -- one bus and kept within these bounds.
+  , pseudo_buses = 1.0
+  , min_factor = 0.67
+  , max_factor = 1.5
+  }
 , planner =
   { max_transfers = 2
   , max_access_m = 900.0

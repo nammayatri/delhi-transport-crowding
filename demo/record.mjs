@@ -130,7 +130,7 @@ await moveTo(W / 2, H / 2, 1);
 const tStart = (Date.now() - t0) / 1000;
 await card(
   `<h1>Delhi bus crowding</h1>
-   <p>From 2.56 million October e-tickets to a journey planner that shows how full each bus usually is</p>
+   <p>From 2.56 million October e-tickets and the live bus feed to a journey planner that shows how full each bus usually is</p>
    <div class="tag">Delhi Transport Stack hackathon · Problem 2</div>`,
   4200,
 );
@@ -158,20 +158,20 @@ if (await later.count()) {
   await caption("Leaving 10 minutes later: seats likely the whole way", 3500);
 }
 
-// ---------- 2. the comfort slider changes the recommendation ----------
-await caption("Another trip: Palam Vihar → Dwarka Sector 21, 08:30<small>First with “Get there fastest”</small>", 1500);
-await choosePlace("From", "Palam Vihar More", "Palam Vihar More");
-await choosePlace("To", "Dwarka Sec 21", "Dwarka Sec 21");
+// ---------- 2. the comfort slider changes the recommendation (the brief's example) ----------
+await caption("The brief's example: Anand Vihar ISBT → Connaught Place, 08:30<small>First with “Get there fastest”</small>", 1500);
+await choosePlace("From", "Anand Vihar ISBT", "Anand Vihar ISBT");
+await choosePlace("To", "Connaught Place", "Connaught Place");
 await clickOn(time);
 await time.fill("08:30");
 await setRange(page.locator('input[type="range"]'), 0);
 await search();
-await caption("Fastest arrives 09:11 but is usually crowded<small>“Feels like” prices the crowding in minutes</small>", 5000);
+await caption("Fastest arrives 09:18 but is usually crowded<small>“Feels like” prices the crowding in minutes</small>", 5000);
 await caption("Now slide towards “Avoid crowds”…", 1200);
 await setRange(page.locator('input[type="range"]'), 1);
 await wait(500);
 await search();
-await caption("…and the planner recommends a bus with seats that arrives at the same time<small>Confidence dots say how many tickets are behind each estimate</small>", 6000);
+await caption("…and the planner recommends a ride with seats, 5 minutes later<small>Confidence dots say how many tickets are behind each estimate</small>", 6000);
 await clickOn(page.locator(".option").first());
 await wait(2500);
 
@@ -194,7 +194,7 @@ for (const m of times) {
 await setRange(slider, idx(9 * 60));
 await wait(1200);
 await clickOn(page.getByText("Only show standing and crowded stretches"));
-await caption("09:00: two in three riders stand or are in a crowded bus; here only those stretches", 4500);
+await caption("09:00: three in five riders stand or are in a crowded bus; here only those stretches", 4500);
 const scen = page.locator("select").nth(1);
 await clickOn(scen);
 await scen.selectOption("high");
@@ -203,6 +203,13 @@ await scen.selectOption("low");
 await caption("…and here 3 M. The shares move, the hotspots stay", 3500);
 await scen.selectOption("mid");
 await wait(800);
+await clickOn(page.getByText("Only show standing and crowded stretches"));
+await clickOn(page.getByText("Show live buses now"));
+await page.waitForTimeout(4000);
+await caption("Live: every bus in the GTFS Realtime feed, placed on its stretch and coloured by how full it usually is right now", 6000);
+await caption("Fewer buses than usual on a route means fuller buses: the live count adjusts every estimate", 4000);
+await clickOn(page.getByText("Show live buses now"));
+await wait(600);
 
 // ---------- 4. operators ----------
 await caption("");
@@ -225,13 +232,13 @@ await caption("Switch to the evening peak", 3500);
 // ---------- 5. closing ----------
 await caption("");
 await card(
-  `<h1>Grounded in the tickets</h1>
+  `<h1>Grounded in the tickets and the live feed</h1>
    <ul>
-     <li>Riders and buses both counted from the tickets: 2.0 M tickets matched to routes, 5,300 buses seen running each weekday</li>
-     <li>9 AM: 37% of riders seated, 31% standing, 32% crowded; toward the centre the average bus is full</li>
-     <li>Peaks at 09:00 and 19:00; toward the centre 1.4× heavier in the morning, away 1.5× in the evening</li>
-     <li>Oct 1–24 predicts Oct 25–31: rank correlation 0.87, same crowding level on 76% of stretches</li>
-     <li>Crowding inside OpenTripPlanner routing, GTFS-Realtime occupancy, live ticket adjustment</li>
+     <li>Riders from 2.56 M e-tickets (93% matched to the October timetable); buses from the timetable, checked against the live GTFS-Realtime feed</li>
+     <li>9 AM: 41% of riders seated, 30% standing, 29% in a crowded bus</li>
+     <li>Peaks at 09:00 and 18:30; toward the centre 1.55× heavier in the morning, away 1.77× in the evening</li>
+     <li>Oct 1–24 predicts Oct 25–31: rank correlation 0.91, same crowding level on 81% of stretches</li>
+     <li>Crowding inside OpenTripPlanner routing, on every live bus, and in standard GTFS-Realtime occupancy</li>
    </ul>`,
   9000,
 );

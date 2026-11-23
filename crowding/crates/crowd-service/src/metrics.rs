@@ -10,6 +10,7 @@ pub struct Metrics {
     pub tickets_ingested: IntCounter,
     pub tickets_rejected: IntCounter,
     pub snapshot_loaded: Gauge,
+    pub live_buses: Gauge,
 }
 
 impl Metrics {
@@ -40,6 +41,11 @@ impl Metrics {
             "Unix time the snapshot was loaded",
         )
         .unwrap();
+        let live_buses = Gauge::new(
+            "crowd_live_buses_running",
+            "Buses running a known route in the latest live feed",
+        )
+        .unwrap();
         let info = IntCounterVec::new(
             Opts::new("crowd_build_info", "Build information"),
             &["version"],
@@ -52,6 +58,7 @@ impl Metrics {
             Box::new(tickets_ingested.clone()),
             Box::new(tickets_rejected.clone()),
             Box::new(snapshot_loaded.clone()),
+            Box::new(live_buses.clone()),
             Box::new(info),
         ] {
             registry.register(c).unwrap();
@@ -63,6 +70,7 @@ impl Metrics {
             tickets_ingested,
             tickets_rejected,
             snapshot_loaded,
+            live_buses,
         }
     }
 

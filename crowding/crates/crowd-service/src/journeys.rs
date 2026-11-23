@@ -455,7 +455,10 @@ pub async fn plan_journeys(st: &AppState, l: &Loaded, body: &JourneyIn) -> AppRe
                 .filter(|x| x.mode == "bus")
                 .all(|x| x.crowding.as_ref().is_some_and(|c| c.detail.has_data));
             let worst = if all_known {
-                c.legs.iter().filter_map(|x| x.crowding.as_ref().and_then(|c| c.level)).max()
+                c.legs
+                    .iter()
+                    .filter_map(|x| x.crowding.as_ref().and_then(|c| c.level))
+                    .max()
             } else {
                 None
             };
@@ -465,7 +468,9 @@ pub async fn plan_journeys(st: &AppState, l: &Loaded, body: &JourneyIn) -> AppRe
             let unknown: f64 = c
                 .legs
                 .iter()
-                .filter(|x| x.mode == "bus" && !x.crowding.as_ref().is_some_and(|c| c.detail.has_data))
+                .filter(|x| {
+                    x.mode == "bus" && !x.crowding.as_ref().is_some_and(|c| c.detail.has_data)
+                })
                 .map(|x| 0.2 * x.minutes)
                 .sum();
             let score = from_req + lambda * (extra + unknown) + transfers as f64 * penalty / 60.0;

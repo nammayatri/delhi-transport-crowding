@@ -16,6 +16,7 @@ use crate::profile::{
     Accumulator, FleetCalibration,
 };
 use crate::profile::{Cells, Grid};
+use crate::rt::{RtCalibration, UnderWay};
 use crate::snapshot::{Meta, SnapPattern, SnapTrip, Snapshot, FORMAT_VERSION};
 use crate::tickets::{Interner, Ticket};
 use crate::trips::{reconstruct, ReconTrip};
@@ -36,9 +37,19 @@ pub struct BuildOutput {
     pub groups: GroupReport,
     /// Per canonical pattern: factor applied for tickets that could not be placed.
     pub unmatched_factor: Vec<f32>,
-    /// Canonical pattern of each pattern (copies of a route run by a second operator
-    /// point at the first).
+    /// Canonical pattern of each pattern (short-turn patterns and second-operator copies
+    /// point at the pattern that covers them).
     pub canon: Vec<u32>,
+    /// Bus-km per day (straight line between stops) by day type: timetable, buses seen in
+    /// tickets (capture-corrected), and the supply used.
+    pub bus_km: BusKm,
+}
+
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct BusKm {
+    pub timetable: [f64; N_DAYTYPES],
+    pub tickets: [f64; N_DAYTYPES],
+    pub used: [f64; N_DAYTYPES],
 }
 
 /// Copy a canonical `[segment][dt][bin]` (or `[stop][dt][bin]`) array onto another
@@ -73,6 +84,7 @@ pub fn build(
     cfg: &ModelConfig,
     tickets: &[Ticket],
     names: &Interner,
+    rt: Option<&RtCalibration>,
 ) -> Result<BuildOutput> {
     cfg.validate()?;
     anyhow::ensure!(!tickets.is_empty(), "no tickets");
@@ -157,14 +169,15 @@ pub fn build(
         acc.add(g, cfg, &cal, &groups, &tickets[a.ticket as usize], a, w);
     }
     let mut sup_sched = supply(g, cfg, &dates, &groups);
-    let fleet = if cfg.fleet_calibration && cfg.supply_source != "tickets" {
-        fleet_calibration(g, tickets, &assigned, &cal, &dates, cfg.fleet_min_scale)
-    } else {
-        FleetCalibration {
-            scale: [1.0; N_DAYTYPES],
-            ..Default::default()
-        }
-    };
+    let fleet =
+        if cfg.fleet_calibration && matches!(cfg.supply_source.as_str(), "timetable" | "max") {
+            fleet_calibration(g, tickets, &assigned, &cal, &dates, cfg.fleet_min_scale)
+        } else {
+            FleetCalibration {
+                scale: [1.0; N_DAYTYPES],
+                ..Default::default()
+            }
+        };
     tracing::info!(?fleet, "fleet calibration");
     {
         let grid = Grid { nb: cfg.n_bins() };
@@ -182,10 +195,37 @@ pub fn build(
     let recon = reconstruct(g, tickets, &assigned, names, cfg.trip_split_gap_minutes);
     let (sup_obs, inv_capture) = observed_supply(g, cfg, &cal, &recon, cfg.capture_cap, &groups);
     let mut raised = 0usize;
+    if cfg.supply_source == "rt" && rt.is_none() {
+        tracing::warn!(
+            "supply_source is rt but no live feed snapshots were given: using the timetable as is"
+        );
+    }
+    let grid = Grid { nb: cfg.n_bins() };
+    let hour_of_bin: Vec<usize> = (0..grid.nb)
+        .map(|b| (cfg.bin_start_minute(b) / 60) as usize % 24)
+        .collect();
     let sup: Vec<Vec<f32>> = sup_sched
         .iter()
         .zip(&sup_obs)
-        .map(|(s, o)| match (cfg.supply_source.as_str(), o) {
+        .enumerate()
+        .map(|(pid, (s, o))| match (cfg.supply_source.as_str(), o) {
+            ("rt", _) => match rt {
+                Some(c) if !s.is_empty() => {
+                    let route = g.patterns[pid].route as usize;
+                    let nseg = s.len() / grid.len(1);
+                    let mut v = s.clone();
+                    for seg in 0..nseg {
+                        for dt in 0..N_DAYTYPES {
+                            for b in 0..grid.nb {
+                                v[grid.idx(seg, dt, b)] *=
+                                    c.factor(route, dt, hour_of_bin[b]) as f32;
+                            }
+                        }
+                    }
+                    v
+                }
+                _ => s.clone(),
+            },
             ("timetable", _) => s.clone(),
             ("max", Some(o)) => s
                 .iter()
@@ -210,6 +250,58 @@ pub fn build(
         "bus supply"
     );
 
+    let bus_km = {
+        let km = |arr: &[f32], pid: usize, dt: usize| -> f64 {
+            if arr.is_empty() {
+                return 0.0;
+            }
+            let p = &g.patterns[pid];
+            let mut t = 0.0;
+            for seg in 0..p.stops.len() - 1 {
+                let len = (p.dist_m[seg + 1] - p.dist_m[seg]) as f64 / 1000.0;
+                for b in 0..grid.nb {
+                    t += arr[grid.idx(seg, dt, b)] as f64 * len;
+                }
+            }
+            t / nd[dt].max(1) as f64
+        };
+        let mut k = BusKm::default();
+        for pid in 0..g.patterns.len() {
+            for dt in 0..N_DAYTYPES {
+                k.timetable[dt] += km(&sup_sched[pid], pid, dt);
+                k.used[dt] += km(&sup[pid], pid, dt);
+                if let Some(o) = &sup_obs[pid] {
+                    k.tickets[dt] += km(o, pid, dt);
+                }
+            }
+        }
+        k
+    };
+    tracing::info!(?bus_km, "bus-km per day");
+    // Buses usually running each route, per day type and bin (live comparison).
+    let usual_buses: Vec<Vec<f32>> = {
+        let mut under = UnderWay::new(g);
+        (0..g.routes.len())
+            .map(|r| {
+                let mut v = vec![0.0f32; N_DAYTYPES * grid.nb];
+                for dt in 0..N_DAYTYPES {
+                    let Some(&d) = dates[dt].first() else {
+                        continue;
+                    };
+                    for b in 0..grid.nb {
+                        let mid = cfg.bin_start_minute(b) * 60 + cfg.bin_minutes * 30;
+                        let n = under.count(r, d, mid) as f64;
+                        let f = match (cfg.supply_source.as_str(), rt) {
+                            ("rt", Some(c)) => c.factor(r, dt, hour_of_bin[b]),
+                            _ => 1.0,
+                        };
+                        v[dt * grid.nb + b] = (n * f) as f32;
+                    }
+                }
+                v
+            })
+            .collect()
+    };
     let shape = city_shape(cfg, &acc.pats, &sup);
     let nb = cfg.n_bins();
     let canon_cells: Vec<Option<Cells>> = g
@@ -273,6 +365,7 @@ pub fn build(
                 ac_share,
                 tickets: pa.map(|a| a.tickets).unwrap_or(0.0),
                 expansion_adj: 1.0,
+                canon: c as u32,
                 cells,
             }
         })
@@ -305,6 +398,8 @@ pub fn build(
             })
             .collect(),
         calendar: g.calendar.clone(),
+        usual_buses,
+        rt: rt.cloned(),
     };
     let adj: Vec<f32> = (0..snapshot.patterns.len() as u32)
         .map(|p| {
@@ -363,5 +458,6 @@ pub fn build(
         fleet,
         unmatched_factor,
         canon: groups.canon.clone(),
+        bus_km,
     })
 }

@@ -6,3 +6,7 @@ otp-crowding/otp-src
 data/out
 data/work.duckdb
 data/raw/tickets/*.zip
+
+api_details.md
+**/api_details.md
+.env

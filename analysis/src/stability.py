@@ -470,7 +470,7 @@ agreement {pct(res['both_periods_level_agreement'])} and kappa {res['both_period
 
 - Real change between early and late October (festival season, weather) is counted as disagreement
   here; the numbers above include it rather than correct for it.
-- Both runs use the same 2025 timetable for supply and the same matching; errors shared by both (missing
+- Both runs use the same bus supply (timetable and live feed) and the same matching; errors shared by both (missing
   routes, wrong stop matches, a wrong city-wide expansion factor) cannot show up in a train/test comparison.
   This check measures stability, not absolute accuracy.
 """

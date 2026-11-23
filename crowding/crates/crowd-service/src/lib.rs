@@ -6,6 +6,7 @@ pub mod error;
 pub mod gtfsrt;
 pub mod journeys;
 pub mod kafka;
+pub mod live_rt;
 pub mod metrics;
 pub mod otp;
 pub mod otp_index;
@@ -37,6 +38,9 @@ pub fn routes(cfg: &mut web::ServiceConfig) {
         .service(api::live_route)
         .service(otp_index::crowding_index)
         .service(gtfsrt::trip_updates)
+        .service(live_rt::live_vehicles)
+        .service(live_rt::vehicle_positions)
+        .service(live_rt::post_vehicle_positions)
         .service(journeys::journeys);
 }
 

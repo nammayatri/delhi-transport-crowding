@@ -1,12 +1,14 @@
-//! Route groups: the same route number run by two operators.
+//! Route groups: patterns that riders and tickets do not tell apart.
 //!
-//! The timetable lists several route names twice, once per operator, each with its own
-//! stop ids. Riders and tickets do not tell them apart, so a ticket on "106DOWN" may come
-//! from either operator's bus. We merge the copies onto one canonical pattern (the one
-//! with most trips): every other copy's stops are mapped to the nearest canonical stop
-//! along the route, and both its tickets and its buses are counted on the canonical
-//! pattern. Copies whose stops do not line up (median distance above a threshold) stay
-//! separate.
+//! Two cases share one route name. A route number may be listed twice, once per operator,
+//! each copy with its own stop ids. And one route may have several stop patterns, such as
+//! full trips and short-turn trips that cover part of it. Tickets name only the route, and
+//! a stretch served by both full and short trips carries the riders and the buses of both.
+//! So we merge the patterns of a name onto one canonical pattern: the one with most stops
+//! (then most trips), which covers the others. Every other pattern's stops are mapped to the
+//! nearest canonical stop along the route, and its tickets and buses are counted on the
+//! canonical pattern. Patterns whose stops do not line up (median distance above a
+//! threshold) stay separate.
 
 use rustc_hash::FxHashMap;
 use serde::Serialize;
@@ -61,8 +63,8 @@ impl Groups {
                 .iter()
                 .max_by_key(|&&p| {
                     (
-                        g.patterns[p as usize].trips.len(),
                         g.patterns[p as usize].stops.len(),
+                        g.patterns[p as usize].trips.len(),
                     )
                 })
                 .unwrap();
@@ -97,16 +99,23 @@ impl Groups {
     }
 }
 
-/// Map each stop of `from` to the nearest stop of `to`, never going backwards.
+/// Map each stop of `from` to the nearest stop of `to`, never going backwards. The first
+/// stop may match anywhere (a short-turn trip can start mid-route); later stops search a
+/// window ahead of the previous match.
 fn monotone_nearest(g: &Gtfs, from: u32, to: u32) -> (Vec<u16>, Vec<f64>) {
     let (a, b) = (&g.patterns[from as usize], &g.patterns[to as usize]);
     let mut prev = 0usize;
     let mut map = Vec::with_capacity(a.stops.len());
     let mut dist = Vec::with_capacity(a.stops.len());
-    for &s in &a.stops {
+    for (i, &s) in a.stops.iter().enumerate() {
         let sa = &g.stops[s as usize];
         let mut best = (f64::INFINITY, prev);
-        for j in prev..b.stops.len().min(prev + 25) {
+        let end = if i == 0 {
+            b.stops.len()
+        } else {
+            b.stops.len().min(prev + 25)
+        };
+        for j in prev..end {
             let sb = &g.stops[b.stops[j] as usize];
             let d = haversine_m(sa.lat, sa.lon, sb.lat, sb.lon);
             if d < best.0 {
