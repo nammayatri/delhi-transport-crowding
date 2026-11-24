@@ -18,5 +18,8 @@ P=(target/release/crowd-pipeline --gtfs ../data/raw/gtfs/delhi-bus --tickets ../
 "${P[@]}" --out ../data/out/sens_tickets --set supply_source=tickets
 "${P[@]}" --out ../data/out/sens_nocap --set capacity_check_quantile=0.0
 "${P[@]}" --out ../data/out/sens_shrink --set shrink_pseudo_trips=20.0
+# Folds for the machine-learning comparison: features Oct 1-17 -> target Oct 18-24.
+"${P[@]}" --out ../data/out/ml_feat --date-to 2026-10-17
+"${P[@]}" --out ../data/out/ml_target --date-from 2026-10-18 --date-to 2026-10-24
 cd ..
 analysis/.venv/bin/python analysis/run_all.py

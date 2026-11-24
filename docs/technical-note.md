@@ -180,6 +180,22 @@ Share of weekday bus-segments whose level changes, compared with the main run:
 
 The modelling details (smoothing, spread, alighting) matter little. What matters is how many riders there are and how many buses carry them: the capacity check, the bus count and the ridership assumption. Counting buses from tickets alone makes loads about 1.5× higher on the same stretches, which is why the live feed now sets the bus count. Every load comes with a low and a high value, and the map and dashboard let you switch scenarios.
 
+### 4.1 Would a machine-learning model do better?
+We trained gradient-boosted trees (scikit-learn, Poisson loss) on the tickets alone to forecast ticketed riders per bus for every weekday stretch and half hour. They were trained on Oct 1–17 to predict Oct 18–24, then given Oct 1–24 to predict Oct 25–31, the same last-week check as §3. Inputs are ticket rates for the cell, its neighbours, the route and the city, plus position, time, direction and bus count. Details are in `docs/results/ml_forecast.md`.
+
+| On the last week (cells with ≥ 10 tickets) | Crowding model | ML, tickets only | ML correcting the crowding model |
+|---|---|---|---|
+| Rank correlation with what happened | 0.887 | 0.895 | 0.894 |
+| Same crowding level | 75.5% | 74.9% | 74.9% |
+| Forecast of the week's total riding | 1.01× | 0.94× | 0.93× |
+| Error spreading riders over stretches, once the week's total is known (deviance, all cells) | 0.145 | 0.130 | 0.131 |
+
+- **Where riders go, ML does a little better.** It ranks stretches slightly better. With the week's total fixed, it spreads riders over stretches and hours with about 10% less error overall and 8% less on busy stretches, partly by borrowing from similar stretches where tickets are thin.
+- **How many ride, it does worse.** Ticketed riding in Dussehra week (Oct 18–24) was 8% below the crowding model's estimate; in the last week of October it was about at it. With one month there is only one such pair of weeks to learn from, so the ML model carried the festival week's level forward and under-forecast the last week by 6%. Its crowding levels agree slightly less often as a result.
+- **Neither can fix what the tickets lack:** the expansion to all riders, app use that differs by route, and buses that sell no tagged ticket. The ML model forecasts ticketed riders per bus; the step to crowding is the same for both.
+
+So ML is worth adding for the pattern across stretches and hours once there are a few months of tickets, with the level coming from live tickets (§2.9). The crowding model stays the default: it is as accurate, needs no training history, and every number in it can be traced.
+
 ## 5. Where the estimates are least reliable
 - **Weekends.** 88% of Saturday and 92% of Sunday bus-segments are low confidence, because there are only 5–6 days of each.
 - **North and outer Delhi.** In the north, north-east and west, and beyond 20 km from the centre (25% reliable), ticket density is low. The weakest busy areas include Rana Pratap Bagh, Ice Factory (Rani Jhansi Road), Chhajjupur and Narela Terminal. Coverage is best in the south, south-east and south-west. **Busy-corridor rankings therefore partly reflect where people use the ticketing app**, since one city-wide expansion factor cannot separate the two.

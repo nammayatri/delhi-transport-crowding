@@ -3,7 +3,7 @@
 This project estimates how full Delhi's buses usually are, by route, direction, stop-to-stop stretch, day type and half hour. It starts from October 2026 e-ticket records and the static GTFS, and uses the live GTFS Realtime bus positions to count the buses that actually run. It then shows crowding next to every journey option and on every live bus, and lets the rider trade speed for comfort.
 
 - **Method, assumptions, checks and limits:** [`docs/technical-note.md`](docs/technical-note.md)
-- **Validation results:** [`docs/results/summary.md`](docs/results/summary.md), with figures in `docs/figures/`
+- **Validation results:** [`docs/results/summary.md`](docs/results/summary.md), with figures in `docs/figures/`; a machine-learning comparison in [`docs/results/ml_forecast.md`](docs/results/ml_forecast.md)
 - **API:** [`docs/api.md`](docs/api.md)
 - **Using it inside an OpenTripPlanner 2.5 stack:** [`docs/integration.md`](docs/integration.md)
 - **Demo video (3 min):** [crowding-demo.mp4](../../releases/download/v1.0/crowding-demo.mp4), with scene notes in [`demo/README.md`](demo/README.md)
@@ -17,7 +17,7 @@ crowding/        Rust workspace
   crates/crowd-replay     replay a day of tickets as a live stream (HTTP or Kafka)
   config/*.dhall          every model assumption and service setting
 otp-crowding/    OpenTripPlanner 2.5 patch (crowding cost in RAPTOR, Leg.crowding), Delhi configs, Dockerfile
-analysis/        Python validation suite (patterns, week-to-week, sensitivity, coverage)
+analysis/        Python validation suite (patterns, week-to-week, sensitivity, coverage, ML comparison)
 web/             React + MapLibre: planner, network crowding map, operator dashboard
 docs/            technical note, API, integration, results and figures
 scripts/         run every model variant plus validation; collect the live feed

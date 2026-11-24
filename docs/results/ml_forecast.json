@@ -1,0 +1,167 @@
+{
+  "fit_cells": 1818614,
+  "eval_cells": 1818983,
+  "headline_cells": 157530,
+  "rows": [
+    {
+      "model": "crowding model (current)",
+      "Spearman vs raw test": 0.8868276936148751,
+      "Spearman vs test model": 0.9115589522366416,
+      "mean abs error (riders/bus)": 10.93241709499924,
+      "level agreement": 0.755316447660763,
+      "kappa": 0.5953808605062787,
+      "Poisson deviance, all cells": 0.14503367245197296,
+      "Poisson deviance, >= 10 tickets": 0.13079828023910522,
+      "level-matched deviance, all cells": 0.1449575126171112,
+      "level-matched deviance, >= 10 tickets": 0.13435198366641998,
+      "forecast / actual week total": 1.0111720561981201
+    },
+    {
+      "model": "stretch all-day average",
+      "Spearman vs raw test": 0.2813722700528524,
+      "Spearman vs test model": 0.38530739034777717,
+      "mean abs error (riders/bus)": 25.35254791938616,
+      "level agreement": 0.5061829492795024,
+      "kappa": 0.03569529341937976,
+      "Poisson deviance, all cells": 0.5195532620823179,
+      "Poisson deviance, >= 10 tickets": 1.0572302475092825,
+      "level-matched deviance, all cells": 0.519533962332331,
+      "level-matched deviance, >= 10 tickets": 1.0651301049502213,
+      "forecast / actual week total": 1.0056141936144745
+    },
+    {
+      "model": "route all-day average",
+      "Spearman vs raw test": 0.019365158506132716,
+      "Spearman vs test model": 0.08562986408553243,
+      "mean abs error (riders/bus)": 28.48701973405333,
+      "level agreement": 0.5034596584777503,
+      "kappa": 0.0010092033683740235,
+      "Poisson deviance, all cells": 0.6724050657491389,
+      "Poisson deviance, >= 10 tickets": 1.469649180643274,
+      "level-matched deviance, all cells": 0.6723857661906013,
+      "level-matched deviance, >= 10 tickets": 1.4795226722507966,
+      "forecast / actual week total": 1.0056141657167388
+    },
+    {
+      "model": "ML, tickets only",
+      "Spearman vs raw test": 0.8945746922252605,
+      "Spearman vs test model": 0.893610909374747,
+      "mean abs error (riders/bus)": 11.273105986118164,
+      "level agreement": 0.7493683742779154,
+      "kappa": 0.5794433180785209,
+      "Poisson deviance, all cells": 0.132266686011286,
+      "Poisson deviance, >= 10 tickets": 0.1458901887167153,
+      "level-matched deviance, all cells": 0.12984918099208054,
+      "level-matched deviance, >= 10 tickets": 0.12307363375121222,
+      "forecast / actual week total": 0.9385875579458476,
+      "trees": 600,
+      "fit seconds": 27.5
+    },
+    {
+      "model": "ML on top of the crowding model",
+      "Spearman vs raw test": 0.8937933984945242,
+      "Spearman vs test model": 0.8967684597826268,
+      "mean abs error (riders/bus)": 11.351116884706315,
+      "level agreement": 0.7492160223449502,
+      "kappa": 0.5784708244782918,
+      "Poisson deviance, all cells": 0.13436961847707454,
+      "Poisson deviance, >= 10 tickets": 0.14710049380288126,
+      "level-matched deviance, all cells": 0.1313738619950723,
+      "level-matched deviance, >= 10 tickets": 0.12007418701999906,
+      "forecast / actual week total": 0.93179959666081,
+      "trees": 600,
+      "fit seconds": 29.3
+    }
+  ],
+  "importance": [
+    {
+      "feature": "rate",
+      "deviance increase when shuffled": 1.1229623160721491
+    },
+    {
+      "feature": "rate_1h",
+      "deviance increase when shuffled": 0.08204621910023294
+    },
+    {
+      "feature": "route_bin_rate",
+      "deviance increase when shuffled": 0.034726551607346556
+    },
+    {
+      "feature": "log_buses",
+      "deviance increase when shuffled": 0.019507773000944407
+    },
+    {
+      "feature": "seg_rate",
+      "deviance increase when shuffled": 0.015762669932369505
+    },
+    {
+      "feature": "log_route_tix",
+      "deviance increase when shuffled": 0.012971325120495175
+    },
+    {
+      "feature": "log_seg_tix",
+      "deviance increase when shuffled": 0.011366031760047282
+    },
+    {
+      "feature": "rate_2h",
+      "deviance increase when shuffled": 0.006601760354612417
+    },
+    {
+      "feature": "route_rate",
+      "deviance increase when shuffled": 0.006151817248315122
+    },
+    {
+      "feature": "city_bin_rate",
+      "deviance increase when shuffled": 0.005656883474426037
+    },
+    {
+      "feature": "route_km",
+      "deviance increase when shuffled": 0.004539857995937563
+    },
+    {
+      "feature": "bin_minute",
+      "deviance increase when shuffled": 0.0025527447039269866
+    },
+    {
+      "feature": "bus_class",
+      "deviance increase when shuffled": 0.002459354989054474
+    },
+    {
+      "feature": "bearing_sin",
+      "deviance increase when shuffled": 0.00237387796149476
+    },
+    {
+      "feature": "log_tix",
+      "deviance increase when shuffled": 0.002091106348027764
+    },
+    {
+      "feature": "km_to_cp",
+      "deviance increase when shuffled": 0.0016427615227003016
+    },
+    {
+      "feature": "bearing_cos",
+      "deviance increase when shuffled": 0.0003408872155009531
+    },
+    {
+      "feature": "km_from_start",
+      "deviance increase when shuffled": 0.00023325468511103029
+    },
+    {
+      "feature": "frac",
+      "deviance increase when shuffled": 0.0001244307766165298
+    },
+    {
+      "feature": "inbound",
+      "deviance increase when shuffled": 6.406178466077568e-05
+    },
+    {
+      "feature": "seq",
+      "deviance increase when shuffled": 4.9763185044876534e-05
+    }
+  ],
+  "seconds": 78.7,
+  "target_over_model": {
+    "fit": 0.9157771124337332,
+    "eval": 0.9889484347045892
+  }
+}

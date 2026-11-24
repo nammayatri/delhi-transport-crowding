@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 import audit  # noqa: E402
 import coverage  # noqa: E402
+import ml_forecast  # noqa: E402
 import patterns  # noqa: E402
 import sensitivity  # noqa: E402
 import stability  # noqa: E402
@@ -26,6 +27,7 @@ STEPS = [
     ("stability", stability.main),
     ("sensitivity", sensitivity.main),
     ("coverage", coverage.main),
+    ("ml_forecast", ml_forecast.main),
     ("summary", summary.main),
 ]
 
