@@ -36,9 +36,14 @@ pub struct OtpConfig {
 pub struct LiveConfig {
     pub enabled: bool,
     pub window_secs: i64,
+    /// Pseudo-tickets pulling a route's factor toward the anchor.
     pub prior_tickets: f64,
     pub min_factor: f64,
     pub max_factor: f64,
+    /// Anchor routes at the whole city's live ratio (true) or at 1 (false).
+    pub city_anchor: bool,
+    /// The factor's distance from 1 shrinks by this per whole hour ahead.
+    pub decay_per_hour: f64,
     /// "wall": now is the wall clock. "replay": now follows the latest ingested ticket.
     pub clock: String,
     pub kafka: KafkaConfig,
@@ -117,9 +122,11 @@ impl Default for LiveConfig {
         Self {
             enabled: true,
             window_secs: 3600,
-            prior_tickets: 6.0,
-            min_factor: 0.5,
-            max_factor: 2.5,
+            prior_tickets: 200.0,
+            min_factor: 0.67,
+            max_factor: 1.5,
+            city_anchor: true,
+            decay_per_hour: 0.85,
             clock: "wall".into(),
             kafka: KafkaConfig::default(),
         }

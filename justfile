@@ -32,6 +32,11 @@ profiles:
 validate:
     scripts/run_all_models.sh
 
+# Add ARIMA and the pretrained Chronos models to the live-adjustment backtest (about 45 min;
+# needs analysis/requirements-forecast.txt), then rewrite its results.
+validate-forecasts:
+    analysis/.venv/bin/python analysis/src/nowcast_arima.py && analysis/.venv/bin/python analysis/src/nowcast_chronos.py && analysis/.venv/bin/python analysis/src/nowcast_backtest.py
+
 # API and web app; polls the live bus positions when DTS_API_KEY is in .env.
 serve:
     if [ -f .env ]; then set -a && . ./.env && set +a; fi && cd crowding && DHALL_CONFIG=config/service.dhall CROWD_WEB_DIR=../web/dist target/release/crowd-service

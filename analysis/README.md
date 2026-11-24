@@ -23,6 +23,9 @@ To recreate the environment:
 ```sh
 python3 -m venv analysis/.venv
 analysis/.venv/bin/pip install -r analysis/requirements.txt
+# optional, for ARIMA and Chronos in the live-adjustment test (PyTorch; Chronos models download from
+# Hugging Face on first run):
+analysis/.venv/bin/pip install -r analysis/requirements-forecast.txt
 ```
 
 ## Steps and outputs
@@ -34,6 +37,10 @@ analysis/.venv/bin/pip install -r analysis/requirements.txt
 | `src/stability.py` | Does a model fitted on Oct 1-24 predict Oct 25-31, and does time of day beat a route-average baseline? | `docs/results/stability.md`, `docs/figures/stability_*.png` |
 | `src/sensitivity.py` | How much do the crowding levels move under other assumptions (ridership, bus supply, capacity cap, alighting spread, trip-to-trip spread, shrinkage)? | `docs/results/sensitivity.md` |
 | `src/coverage.py` | Where and when are estimates least reliable, and what does the confidence label miss? | `docs/results/coverage.md`, `docs/figures/coverage_map.png` |
+| `src/ml_forecast.py` | Would gradient-boosted trees trained on the tickets forecast the last week better than the crowding model? | `docs/results/ml_forecast.md` |
+| `src/nowcast_backtest.py` | Replaying October hour by hour: does the live-ticket adjustment forecast the next three hours better than the usual pattern, and which version is best? Adds the ARIMA and Chronos rows when `nowcast_arima.py` and `nowcast_chronos.py` have been run. | `docs/results/nowcast_backtest.md`, `docs/figures/nowcast_*.png` |
+| `src/nowcast_arima.py` | Optional, not part of `run_all.py`: regression with ARIMA errors on the city total and on every route, refitted at every forecast time (about 10 minutes). Needs `requirements-forecast.txt`. | `data/out/nowcast/arima.npz` |
+| `src/nowcast_chronos.py` | Optional, not part of `run_all.py`: forecasts from the pretrained Chronos models for the same cells (about 35 minutes). Needs `requirements-forecast.txt`. | `data/out/nowcast/chronos.npz` |
 | `src/summary.py` | One-page digest of the headline numbers. | `docs/results/summary.md` |
 
 Every step also writes its numbers to `docs/results/<step>.json`; `summary.md` is generated only from

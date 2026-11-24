@@ -9,7 +9,7 @@ use arc_swap::ArcSwapOption;
 use chrono::{DateTime, FixedOffset, NaiveDate, Timelike, Utc};
 use crowd_core::daytype::{DayCalendar, DayType};
 use crowd_core::names::{norm_route, norm_stop, route_candidates};
-use crowd_core::nowcast::{LiveFactor, Nowcast, NowcastConfig};
+use crowd_core::nowcast::{LiveFactor, Nowcast, NowcastConfig, UsualBoardings};
 use crowd_core::planner::{active_mask, Network, PlannerConfig};
 use crowd_core::snapshot::Snapshot;
 use crowd_core::tickets::{ist, parse_ts};
@@ -31,6 +31,8 @@ pub struct Loaded {
     pub route_by_name: FxHashMap<String, u32>,
     /// Route used for live counts: copies of one route number share the first copy.
     pub route_canon: Vec<u32>,
+    /// Usual ticketed boardings per live route key and for the city, for live tickets.
+    pub usual: UsualBoardings,
     pub patterns_by_route: Vec<Vec<u32>>,
     /// Normalised stop names for search, with stop index.
     pub stop_search: Vec<(String, u32)>,
@@ -86,6 +88,7 @@ impl Loaded {
             .iter()
             .map(|r| route_by_name[&norm_route(r.name())])
             .collect();
+        let usual = UsualBoardings::new(&snap, |r| route_canon[r as usize]);
         let mut patterns_by_route = vec![Vec::new(); snap.routes.len()];
         let mut stop_has_data = vec![false; snap.stops.len()];
         for (pid, p) in snap.patterns.iter().enumerate() {
@@ -113,6 +116,7 @@ impl Loaded {
             route_by_id,
             route_by_name,
             route_canon,
+            usual,
             patterns_by_route,
             stop_search,
             stop_has_data,
@@ -175,6 +179,8 @@ impl AppState {
             prior_tickets: cfg.live.prior_tickets,
             min_factor: cfg.live.min_factor,
             max_factor: cfg.live.max_factor,
+            city_anchor: cfg.live.city_anchor,
+            decay_per_hour: cfg.live.decay_per_hour,
         });
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_millis(cfg.otp.timeout_ms))
@@ -298,7 +304,8 @@ impl AppState {
             let flowing = live.observed_total > 0
                 && now.timestamp() - live.latest_ts <= self.cfg.live.window_secs;
             if flowing {
-                live.factor(&l.snap, route, when.dt, now.timestamp(), secs)
+                let ahead = (delta.max(0) / 3600) as u32;
+                live.factor(&l.usual, route, when.dt, now.timestamp(), secs, ahead)
             } else {
                 LiveFactor::neutral()
             }

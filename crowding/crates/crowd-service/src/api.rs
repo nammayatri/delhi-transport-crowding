@@ -816,7 +816,8 @@ pub async fn live_route(st: State, path: web::Path<String>) -> AppResult<HttpRes
     Ok(HttpResponse::Ok().json(json!({
         "route_id": path.as_str(), "route": l.snap.routes[ri as usize].name(), "now": st.now(), "daytype": when.dt,
         "live_factor": f.factor, "observed_tickets": f.observed, "expected_tickets": f.expected,
+        "city_ticket_factor": f.city_factor,
         "buses_running": f.buses_live, "buses_usual": f.buses_usual, "supply_factor": f.supply_factor,
-        "meaning": "riders per bus now vs the usual for this route, day type and hour (1.0 = usual): live tickets against the usual, times usual buses against buses running",
+        "meaning": "riders per bus now vs the usual for this route, day type and hour (1.0 = usual): the city's live tickets against usual, nudged by this route's, times usual buses against buses running",
     })))
 }

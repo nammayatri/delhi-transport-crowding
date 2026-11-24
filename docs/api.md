@@ -53,7 +53,7 @@ Each option has:
 |---|---|---|
 | POST | `/v1/tickets` | One ticket or an array, in the published shape (`passenger_count, amount, vehicle_number, ticket_type_id, start_stop_name, end_stop_name, route, created_at, is_ac`). Returns `{accepted, rejected}`. |
 | GET | `/v1/live/status` | Clock, tickets seen, routes seen, and the latest live bus positions (feed time, buses, running). |
-| GET | `/v1/live/routes/{route_id}` | Live factor for this route now: live tickets against the usual, times usual buses against buses running (`buses_running`, `buses_usual`, `supply_factor`). |
+| GET | `/v1/live/routes/{route_id}` | Live factor for this route now: the whole city's live tickets against usual (`city_ticket_factor`), nudged by this route's own (`observed_tickets`, `expected_tickets`), times usual buses against buses running (`buses_running`, `buses_usual`, `supply_factor`). |
 
 ## Live bus positions
 | Method | Path | What it does |

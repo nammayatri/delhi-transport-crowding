@@ -12,5 +12,9 @@ dependencies = [
     "scikit-learn==1.9.1",
 ]
 
+[project.optional-dependencies]
+# ARIMA and the pretrained Chronos models in the live-adjustment backtest.
+forecast = ["statsmodels==0.15.0", "pandas==3.1.1", "torch==2.15.0", "chronos-forecasting==2.3.2"]
+
 [tool.ruff]
 line-length = 120

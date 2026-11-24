@@ -1,0 +1,7 @@
+# Optional: ARIMA and the pretrained Chronos models in the live-adjustment backtest
+# (src/nowcast_arima.py, src/nowcast_chronos.py).
+-r requirements.txt
+statsmodels==0.15.0
+pandas==3.1.1
+torch==2.15.0
+chronos-forecasting==2.3.2

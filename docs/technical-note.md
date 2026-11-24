@@ -143,7 +143,12 @@ The OpenTripPlanner patch adds `crowdingReluctance × (C[j] − C[i])` to the ge
 The journeys endpoint plans at the requested time and at +10, +20 and +30 minutes, both with and without crowding reluctance. It labels the options **Fastest**, **Most comfortable** and **Leave later, seats likely**, and ranks them using the user's slider.
 
 ### 2.9 Live tickets
-At about 2 tickets per bus trip, live tickets say little about any single bus. They do say whether a route is busier than usual right now. While a ticket stream is flowing, the service compares a route's tickets over the last hour with the number expected for that route, day type and hour. It shrinks the ratio toward 1 (6 pseudo-tickets), clamps it to 0.5–2.5, and applies it to the next three hours.
+At about 2 tickets per bus trip, live tickets say little about any single bus. Even a route's tickets over an hour swing with which buses happened to pass: on busy routes, a route's ratio to usual in one hour correlates only 0.24 with the next hour's. The whole city's ticket rate is much steadier and does carry over, for example on a quiet festival eve or a busy holiday. So while a ticket stream is flowing, the service:
+- compares the whole city's tickets over the last hour with the usual for that day type and hour;
+- nudges each route toward its own last hour with 200 pseudo-tickets, so one busy hour on a route moves it only a little;
+- keeps the factor within 0.67–1.5 and fades it toward 1 by 0.85 per hour ahead, for trips up to three hours ahead.
+
+These settings come from replaying October hour by hour (§4.2). Usual counts are taken once per route number. Short workings and a second operator's copy carry the same riders, and earlier versions added them up twice.
 
 Live tickets arrive over HTTP (`POST /v1/tickets`) or Kafka. `crowd-replay` replays any October day as a live stream.
 
@@ -196,6 +201,29 @@ We trained gradient-boosted trees (scikit-learn, Poisson loss) on the tickets al
 
 So ML is worth adding for the pattern across stretches and hours once there are a few months of tickets, with the level coming from live tickets (§2.9). The crowding model stays the default: it is as accurate, needs no training history, and every number in it can be traced.
 
+### 4.2 Does the live adjustment help? Replaying October
+We replayed Oct 15–31 hour by hour. At every hour from 06:00 to 21:00, each method forecast every route's ticketed riders for the next three hours from the tickets up to then: 1.5 million route-hour forecasts. "Usual" is the average of the earlier days of the same day type, so nothing is fitted on the day it forecasts. Settings and models were tuned or trained on Oct 15–24 and scored on Oct 25–31, and the other way round. Details are in `docs/results/nowcast_backtest.md`.
+
+| Method | Error drop vs usual pattern | Busy routes | Oct 18–20 (Dussehra) | City total error |
+|---|---|---|---|---|
+| Usual pattern only | — | — | — | 12.3% |
+| Previous rule: route's last hour, 6 pseudo-tickets | −7.6% | −31.9% | −1.8% | 9.9% |
+| **City ratio, nudged by the route (now the default, §2.9)** | **2.0%** | **6.0%** | **6.7%** | **8.1%** |
+| ARIMA on the city total, usual pattern as regressor | 0.9% | 2.3% | 2.8% | 10.0% |
+| ARIMA per route, usual pattern as regressor | −2.7% | −5.3% | 3.7% | 14.2% |
+| Chronos-Bolt per route (pretrained, history only) | −3.8% | −8.9% | −2.7% | 15.9% |
+| Chronos-2 per route, usual pattern as covariate | 4.0% | 4.3% | 4.9% | 11.8% |
+| Gradient-boosted trees on today's tickets | 5.5% | 7.0% | 11.0% | 9.8% |
+
+Error is Poisson deviance per route-hour. Busy routes are route-hours with at least 10 usual ticketed riders. City total error is the average error of the city's total for each forecast hour.
+
+- **The previous rule made forecasts worse.** One hour of a route's tickets mostly reflects which buses happened to pass: on busy routes it correlates only 0.24 with the next hour. The rule applied it in full for three hours. It also counted usual riders twice on routes with short workings. Both are fixed.
+- **The whole city is the signal.** On unusual days the city's ticket rate against usual carries over for hours. On Dussehra eve it ran 44% below usual at 08:00. Using the city's ratio, with the route's own tickets as a small nudge and fading by 0.85 per hour, gives the best city totals of any method. It needs no training and costs nothing to run, so it is now the service default.
+- **ARIMA and Chronos do not beat it on the live part.** Fitted mostly on ordinary days, ARIMA learns that departures from usual are small and short-lived. On Dussehra eve it carried only about a third of the morning's shortfall into 09:00: it forecast 11,650 riders, against 8,310 actual and 13,505 usual. Per route, ARIMA and Chronos-Bolt work from 2–3 tickets an hour, often none, and do worse than the usual pattern.
+- **Chronos-2 is the strongest pretrained model**, at 4.0% when given the usual pattern as a covariate. Most of its gain is on ordinary days and Saturdays, where it corrects the usual pattern from recent days; Saturday's usual rests on only 2–4 earlier Saturdays. It forecasts 3% too few riders overall.
+- **Gradient-boosted trees do best, partly by fixing the usual pattern.** They gain 5.5% overall. Without today's tickets they still gain 1.8%. The next step is therefore a better usual pattern (weighting recent weeks, borrowing across day types for Saturdays). After that comes a trained live model, once there are a few months of tickets to train it on.
+- **Limit: an outage looks like an empty city.** On Oct 6, tickets fell to 29% of usual between 09:00 and 10:00 and to 0% the next hour. That was a ticketing outage, not riders staying home. The 0.67 floor limits the damage, and the service ignores live tickets once none have arrived for an hour. Checking against the live bus feed (buses running normally, but no tickets) would tell the two apart.
+
 ## 5. Where the estimates are least reliable
 - **Weekends.** 88% of Saturday and 92% of Sunday bus-segments are low confidence, because there are only 5–6 days of each.
 - **North and outer Delhi.** In the north, north-east and west, and beyond 20 km from the centre (25% reliable), ticket density is low. The weakest busy areas include Rana Pratap Bagh, Ice Factory (Rani Jhansi Road), Chhajjupur and Narela Terminal. Coverage is best in the south, south-east and south-west. **Busy-corridor rankings therefore partly reflect where people use the ticketing app**, since one city-wide expansion factor cannot separate the two.
@@ -211,7 +239,8 @@ Every cell carries a confidence of high, medium or low. Confidence is high with 
 just fetch && just build      # tickets, Rust and web builds (put the GTFS zip at data/raw/gtfs/)
 just rt-collect               # save the live feed every minute (needs DTS_API_KEY in .env); leave running
 just profiles                 # model from all of October, calibrated on the saved snapshots, about 20 s
-just validate                 # all runs plus the validation suite, about 3 min
+just validate                 # all runs plus the validation suite, about 5 min
+just validate-forecasts       # optional: add ARIMA and the pretrained Chronos models to the live-adjustment test, about 45 min
 just serve                    # API and web app at http://localhost:8090, with live buses
 ```
 Every assumption is in `crowding/config/model.dhall`. Any value can be overridden for one run, e.g. `--set trip_cv=0.5`.

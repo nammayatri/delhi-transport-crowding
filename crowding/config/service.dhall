@@ -12,11 +12,16 @@
   , num_itineraries = 5
   }
 , live =
+  -- Tested by replaying October (docs/results/nowcast_backtest.md): the whole city's
+  -- tickets over the last hour against usual, nudged by the route's own with 200
+  -- pseudo-tickets, kept within 0.67-1.5 and faded by 0.85 per hour ahead.
   { enabled = True
   , window_secs = 3600
-  , prior_tickets = 6.0
-  , min_factor = 0.5
-  , max_factor = 2.5
+  , prior_tickets = 200.0
+  , min_factor = 0.67
+  , max_factor = 1.5
+  , city_anchor = True
+  , decay_per_hour = 0.85
   -- "wall" or "replay" (now follows the latest ingested ticket, for demos).
   , clock = env:CROWD_CLOCK as Text ? "replay"
   , kafka = { enabled = False, brokers = "localhost:9092", topic = "tickets", group_id = "crowd-service" }
