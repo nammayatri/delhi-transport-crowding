@@ -19,7 +19,7 @@ the crowding model rather than from scratch.
 
 | model | Spearman vs raw test | Spearman vs test model | mean abs error (riders/bus) | level agreement | kappa | Poisson deviance, all cells | Poisson deviance, >= 10 tickets | level-matched deviance, all cells | level-matched deviance, >= 10 tickets | forecast / actual week total |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| crowding model (current) | 0.887 | 0.912 | 10.93 | 75.5% | 0.595 | 0.1450 | 0.1308 | 0.1450 | 0.1344 | 1.011 |
+| crowding model | 0.887 | 0.912 | 10.93 | 75.5% | 0.595 | 0.1450 | 0.1308 | 0.1450 | 0.1344 | 1.011 |
 | stretch all-day average | 0.281 | 0.385 | 25.35 | 50.6% | 0.036 | 0.5196 | 1.0572 | 0.5195 | 1.0651 | 1.006 |
 | route all-day average | 0.019 | 0.086 | 28.49 | 50.3% | 0.001 | 0.6724 | 1.4696 | 0.6724 | 1.4795 | 1.006 |
 | ML, tickets only | 0.895 | 0.894 | 11.27 | 74.9% | 0.579 | 0.1323 | 0.1459 | 0.1298 | 0.1231 | 0.939 |

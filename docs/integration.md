@@ -24,13 +24,14 @@ stack without changes to that stack's own services:
    - Clients that use their own planner call `/v1/legs:annotate`.
    - Or use `/v1/journeys` as the front door. It adds the "leave later" and "most comfortable" alternatives.
 5. **Realtime feeds.** Point the service at the live VehiclePositions feed (`rt.url`, key in the environment variable named by `rt.api_key_env`), or push it to `POST /v1/live/vehicle-positions` from an existing poller. An existing GTFS-RT producer can then serve `/gtfs-rt/vehicle-positions.pb` (the same feed with `occupancy_status` and `occupancy_percentage` filled) or copy `departure_occupancy_status` from `/gtfs-rt/trip-updates.pb`.
-6. **Live tickets.** Publish ticket events to Kafka, rebuilding the service with the `kafka` feature, or POST them in batches. With no live feed the service serves the historical profile.
+6. **Live tickets.** Publish ticket events to Kafka, rebuilding the service with the `kafka` feature, or POST them in batches. With no live feed the service serves the historical profile. The live adjustment is a statistical rule by default. Set `LIVE_MODEL=trees` to use the gradient-boosted trees, retraining them with `just validate` as tickets accumulate (technical note §5).
+7. **Deployment.** The root `Dockerfile` builds one image with the service, the web app, the model and the patched OpenTripPlanner, and `deploy/kubernetes.yaml` runs it as a Deployment with a Service and an Istio VirtualService. The live-feed key goes in a Secret.
 
 ## Configuration
-- **Service:** `crowding/config/service.dhall`, passed as `DHALL_CONFIG`. Every field has a default; environment overrides are `CROWD_SNAPSHOT`, `OTP_ENABLED`, `OTP_GRAPHQL_URL`, `CROWD_CLOCK`, `CROWD_WEB_DIR` and `RT_ENABLED`. The live feed key is read from `DTS_API_KEY` and is never written to config.
+- **Service:** `crowding/config/service.dhall`, passed as `DHALL_CONFIG`. Every field has a default; environment overrides are `CROWD_SNAPSHOT`, `OTP_ENABLED`, `OTP_GRAPHQL_URL`, `CROWD_CLOCK`, `CROWD_WEB_DIR`, `RT_ENABLED`, `LIVE_MODEL` and `LIVE_TREES`. The live feed key is read from `DTS_API_KEY` and is never written to config.
 - **Model:** `crowding/config/model.dhall`.
 
 ## Operations
 - **Health and metrics:** `/health` (liveness), `/ready` (snapshot loaded), and `/metrics` in Prometheus format.
 - **Logs:** structured, via `tracing`. Set `RUST_LOG=info`.
-- **Footprint:** the service keeps everything in memory, about 1 GB for Delhi. It needs no database or cache.
+- **Footprint:** the service keeps everything in memory, about 1 GB for Delhi, and needs no database or cache. OpenTripPlanner with the Delhi graph needs about 3 GB more.

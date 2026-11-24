@@ -25,6 +25,7 @@ pub mod geo;
 pub mod groups;
 pub mod gtfs;
 pub mod levels;
+pub mod live_trees;
 pub mod names;
 pub mod nowcast;
 pub mod planner;

@@ -44,6 +44,10 @@ pub struct LiveConfig {
     pub city_anchor: bool,
     /// The factor's distance from 1 shrinks by this per whole hour ahead.
     pub decay_per_hour: f64,
+    /// "rule" (default) or "trees": opt in to the machine-learning live model.
+    pub model: String,
+    /// Exported trees (written by analysis/src/nowcast_backtest.py).
+    pub trees_path: String,
     /// "wall": now is the wall clock. "replay": now follows the latest ingested ticket.
     pub clock: String,
     pub kafka: KafkaConfig,
@@ -127,6 +131,8 @@ impl Default for LiveConfig {
             max_factor: 1.5,
             city_anchor: true,
             decay_per_hour: 0.85,
+            model: "rule".into(),
+            trees_path: "../data/out/full/live_trees.json".into(),
             clock: "wall".into(),
             kafka: KafkaConfig::default(),
         }

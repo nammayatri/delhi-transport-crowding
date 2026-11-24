@@ -49,12 +49,14 @@ or crowded ranges 14.7%-38.6% across runs: quote it with that range.
 the SW/S/SE sectors and weakest in the NE/N/W sectors and beyond 20 km
 (25%); weakest busy areas: Rana Pratap Bagh (7 km N of CP), Ice Factory (Rani Jhansi Road) (4 km N of CP), Chhajjupur (10 km NE of CP), Narela Terminal (27 km NW of CP).
 
-**Fixed during validation.** Tickets name only the route, so the stop patterns of one route (full and
-short-turn trips) are merged onto the pattern that covers them (924 merged,
-0 kept apart because their stops do not line up). Counting buses from tickets alone
-missed many buses that ran; the live feed now sets the bus count. Loads above crush capacity
-are capped at crush and flagged (0 high-confidence cells remain above crush), and a bin
-whose bus count rests on few buses can no longer be high confidence.
+**Statistical model or machine learning.** Week ahead (Oct 25-31, cells with >= 10 tickets): the crowding
+model ranks stretches with Spearman 0.887 against 0.895 for
+gradient-boosted trees, agrees on the level 75.5% vs 74.9% of the time, and
+forecasts the week's riding at 1.01x vs 0.94x of actual.
+Next one to three hours (replay of Oct 15-31): the statistical city rule cuts route-hour forecast error by
+2.0% and the city's hourly total error to 8.1%; gradient-boosted trees cut route-hour error by
+5.5% (city total error 9.8%), Chronos-2 by 4.0%, ARIMA on the city total by
+0.9%. The statistical model is the default; the trees are an opt-in live model.
 
 **Known limits.**
 (1) The live feed is from 2026-11-23 while the tickets are from October; hours without snapshots use the average factor of their day type (or of all snapshots).

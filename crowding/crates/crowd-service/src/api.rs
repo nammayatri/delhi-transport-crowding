@@ -795,6 +795,7 @@ pub async fn live_status(st: State) -> AppResult<HttpResponse> {
         "enabled": st.cfg.live.enabled, "clock": st.cfg.live.clock, "now": now,
         "tickets": live.observed_total, "routes": live.routes_seen(), "latest_ts": live.latest_ts,
         "window_secs": st.cfg.live.window_secs,
+        "live_model": if live.trees.is_some() { "trees" } else { "rule" },
         "bus_positions": st.fleet.load_full().map(|f| json!({
             "feed_time": chrono::DateTime::from_timestamp(f.feed_ts, 0).map(|t| t.with_timezone(&ist())),
             "buses": f.buses.len(),
@@ -816,7 +817,7 @@ pub async fn live_route(st: State, path: web::Path<String>) -> AppResult<HttpRes
     Ok(HttpResponse::Ok().json(json!({
         "route_id": path.as_str(), "route": l.snap.routes[ri as usize].name(), "now": st.now(), "daytype": when.dt,
         "live_factor": f.factor, "observed_tickets": f.observed, "expected_tickets": f.expected,
-        "city_ticket_factor": f.city_factor,
+        "city_ticket_factor": f.city_factor, "live_model": f.model,
         "buses_running": f.buses_live, "buses_usual": f.buses_usual, "supply_factor": f.supply_factor,
         "meaning": "riders per bus now vs the usual for this route, day type and hour (1.0 = usual): the city's live tickets against usual, nudged by this route's, times usual buses against buses running",
     })))

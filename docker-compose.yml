@@ -1,49 +1,38 @@
-# docker compose run --rm pipeline   # build the crowding model into ./data/out/full
-# docker compose up crowd-service    # API + web app on http://localhost:8090
-# docker compose --profile otp up    # also the patched OpenTripPlanner with the Delhi graph
+# docker compose up --build                     # the single image: http://localhost:8090 (OpenTripPlanner inside)
+# docker compose --profile build run --rm pipeline   # rebuild the model into ./data/out/full, then rebuild the image
+# CROWD_CLOCK=replay docker compose up -d && docker compose --profile replay run --rm replay
 services:
-  pipeline:
+  crowding:
     build: .
+    image: delhi-transport-crowding
+    ports: ["8090:8090"]
+    environment:
+      CROWD_CLOCK: "${CROWD_CLOCK:-wall}"
+      # "rule" (default) or "trees" (the opt-in machine-learning live model).
+      LIVE_MODEL: "${LIVE_MODEL:-rule}"
+      # Live bus positions: the key comes from the shell or .env, never from the image.
+      DTS_API_KEY: "${DTS_API_KEY:-}"
+
+  pipeline:
+    image: delhi-transport-crowding
     profiles: ["build"]
     volumes: ["./data:/data"]
+    entrypoint: ["crowd-pipeline"]
     command:
-      - crowd-pipeline
       - --config=/app/config/model.dhall
       - --gtfs=/data/raw/gtfs/delhi-bus
       - --tickets=/data/raw/tickets/October-Delhi.csv
       - --out=/data/out/full
       - --rt=/data/raw/rt
 
-  crowd-service:
-    build: .
-    ports: ["8090:8090"]
-    volumes: ["./data:/data:ro"]
-    environment:
-      CROWD_CLOCK: replay
-      OTP_ENABLED: "${OTP_ENABLED:-False}"
-      # Live bus positions: the key comes from the shell or .env, never from a file in the image.
-      DTS_API_KEY: "${DTS_API_KEY:-}"
-      OTP_GRAPHQL_URL: http://otp:8080/otp/gtfs/v1
-
-  otp:
-    profiles: ["otp"]
-    build:
-      context: .
-      dockerfile: otp-crowding/Dockerfile
-    ports: ["8080:8080"]
-    environment:
-      OTP_CROWDING_INDEX_URL: http://crowd-service:8090/v1/otp/crowding-index
-    depends_on: [crowd-service]
-
   replay:
-    build: .
+    image: delhi-transport-crowding
     profiles: ["replay"]
     volumes: ["./data:/data:ro"]
+    entrypoint: ["crowd-replay"]
     command:
-      - crowd-replay
       - --tickets=/data/raw/tickets/October-Delhi.csv
       - --date=2026-10-28
       - --from=07:00
       - --speed=120
-      - --url=http://crowd-service:8090
-    depends_on: [crowd-service]
+      - --url=http://crowding:8090

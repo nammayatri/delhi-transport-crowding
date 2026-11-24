@@ -1,0 +1,61 @@
+# Kubernetes: one Deployment running the single image (crowding service, web app, model and
+# OpenTripPlanner), a Service, and an Istio VirtualService. Set the namespace, image, host and
+# gateway for your cluster. The live bus feed key comes from a Secret:
+#   kubectl -n <namespace> create secret generic delhi-transport-crowding --from-env-file=.env
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: delhi-transport-crowding
+  labels: { app: delhi-transport-crowding }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: delhi-transport-crowding }
+  template:
+    metadata:
+      labels: { app: delhi-transport-crowding }
+    spec:
+      containers:
+        - name: crowding
+          image: delhi-transport-crowding:latest
+          ports:
+            - { name: http, containerPort: 8090 }
+            - { name: otp, containerPort: 8080 }
+          env:
+            - { name: CROWD_CLOCK, value: wall }
+            - { name: LIVE_MODEL, value: rule } # "trees" opts in to the machine-learning live model
+            - name: DTS_API_KEY
+              valueFrom:
+                secretKeyRef: { name: delhi-transport-crowding, key: DTS_API_KEY, optional: true }
+          resources:
+            requests: { cpu: 500m, memory: 4500Mi }
+            limits: { memory: 6Gi }
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: delhi-transport-crowding
+spec:
+  selector: { app: delhi-transport-crowding }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: delhi-transport-crowding
+spec:
+  hosts: [crowding.example.com]
+  gateways: [istio-system/ingressgateway]
+  http:
+    - route:
+        - destination:
+            host: delhi-transport-crowding
+            port: { number: 80 }

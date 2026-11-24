@@ -4,10 +4,10 @@
 
 We built three things:
 - **A pipeline** that turns the October 2026 ticket records into an estimate of how many people are on board, by route, direction, stop-to-stop stretch, day type and 30-minute bin. The number of buses comes from the timetable, checked against the live GTFS Realtime feed.
-- **A crowding service** that serves those estimates to commuters and operators: a journey planner, a network map with the live buses, operator tables, and standard GTFS Realtime feeds with occupancy filled in.
+- **A crowding service** that serves those estimates to commuters and operators: a journey planner, a network map with the live buses, operator tables, and standard GTFS Realtime feeds with occupancy filled in. Live tickets and live bus positions adjust the estimates for the next hours.
 - **A patch for OpenTripPlanner 2.5** so the planner itself can weigh crowding when it searches, not just display it afterwards.
 
-All numbers in this note come from `scripts/run_all_models.sh`. The detail is in `docs/results/`.
+We also tested the statistical estimate against machine-learning and time-series models (§5). All numbers in this note come from `scripts/run_all_models.sh`. The detail is in `docs/results/`.
 
 ## 1. What the data is, and what that means for the method
 
@@ -55,7 +55,7 @@ The rest could not be placed:
 ### 2.2 Full and short-turn patterns of a route
 A route can have several stop patterns, such as full trips and short-turn trips that cover part of it. A ticket says only "8UP", and a stretch served by both carries the riders and the buses of both. So the patterns of one route name are merged onto the pattern that covers the others (most stops, then most trips). Every stop is mapped to the nearest stop on that canonical pattern, moving only forward; a short-turn pattern may start anywhere along it. The median distance between matched stops is 0 m. Tickets and buses of all patterns are then counted on the canonical pattern.
 
-924 patterns were merged and none kept apart. The same step merges two operators' copies of a route number, which older feeds listed separately.
+924 patterns were merged and none kept apart. The same step merges two operators' copies of one route number.
 
 ### 2.3 Missing alighting stops
 When the alighting stop cannot be matched, it is imputed:
@@ -91,13 +91,13 @@ How many buses pass a stretch in a half hour comes from the timetable, scaled pe
 5. **Route factor.** Each route's running buses against what the city factor predicts for it, shrunk toward 1 with 60 bus-snapshots (about one bus for an hour) and kept within ⅓–3.
 6. **Supply.** Timetabled bus passes × city factor × route factor.
 
-**What the feed showed.** Snapshots so far cover Monday 23 November, 19:38–21:25 (14 snapshots, 5,461 different buses running). Between 19:00 and 20:00, buses running match the timetable (factor 1.00). By 21:00 only 0.77 as many run as the timetable lists, and the average over all snapshots is 0.89. Route factors span 0.80–1.22 of the city factor between the 10th and 90th percentile.
+**What the feed showed.** The calibration in this note uses 14 snapshots from Monday 23 November, 19:38–21:25 (5,461 different buses running). Between 19:00 and 20:00, buses running match the timetable (factor 1.00). By 21:00 only 0.77 as many run as the timetable lists, and the average over all snapshots is 0.89. Route factors span 0.80–1.22 of the city factor between the 10th and 90th percentile.
 
-**Why not count buses from the tickets.** Earlier versions did. The live feed shows the tickets miss about half the buses. Over a weekday, the buses used here cover 1.24M bus-km (straight line between stops). The timetable as published lists 1.40M, and buses rebuilt from tickets, even after correcting for trips that sold no tagged ticket, only 0.74M. Counting from tickets made every bus about 1.5× fuller (§4).
+**Why not count buses from the tickets.** The live feed shows the tickets miss about half the buses. Over a weekday, the buses used here cover 1.24M bus-km (straight line between stops). The timetable as published lists 1.40M, and buses rebuilt from tickets, even after correcting for trips that sold no tagged ticket, only 0.74M. Counting from tickets made every bus about 1.5× fuller (§4).
 
-**Assumptions.** The live feed is from November and the tickets from October, so this assumes the same service in both months; the timetable is the same feed. Hours without snapshots use an average factor. The collector keeps running, and `just validate` recalibrates on every snapshot saved so far.
+**Assumptions.** The live feed is from November and the tickets from October, so this assumes the same service in both months; the timetable is the same feed. Hours without snapshots use an average factor. `just validate` recalibrates on every snapshot saved.
 
-**Alternatives** for sensitivity runs: `supply_source = "timetable"` (as published), `"tickets"` (rebuilt trips with the capture correction, the earlier method) and `"max"`.
+**Alternatives** for sensitivity runs: `supply_source = "timetable"` (as published), `"tickets"` (trips rebuilt from tickets, corrected for trips that sold none) and `"max"`.
 
 ### 2.6 From ticketed riders to all riders
 Tickets miss passholders, concession riders (including free travel for women), cash tickets and fare evasion. We scale up so that an average weekday matches published city bus ridership:
@@ -148,7 +148,9 @@ At about 2 tickets per bus trip, live tickets say little about any single bus. E
 - nudges each route toward its own last hour with 200 pseudo-tickets, so one busy hour on a route moves it only a little;
 - keeps the factor within 0.67–1.5 and fades it toward 1 by 0.85 per hour ahead, for trips up to three hours ahead.
 
-These settings come from replaying October hour by hour (§4.2). Usual counts are taken once per route number. Short workings and a second operator's copy carry the same riders, and earlier versions added them up twice.
+These settings come from replaying October hour by hour (§5.2). Usual counts are taken once per route number, since short workings and a second operator's copy carry the same riders.
+
+**Opt-in machine-learning model.** Setting `LIVE_MODEL=trees` replaces this rule with gradient-boosted trees trained on the same replay. They forecast each route's riders in each of the next three hours against usual, from the route's and the city's tickets over the last hour, the last two hours and since 04:00. Route by route they are more accurate; for the city's total they are less accurate (§5). `analysis/src/nowcast_backtest.py` exports the trees and the service evaluates them in Rust. On loading, the service re-scores 200 rows that scikit-learn scored at export, and falls back to the rule if any differ.
 
 Live tickets arrive over HTTP (`POST /v1/tickets`) or Kafka. `crowd-replay` replays any October day as a live stream.
 
@@ -183,58 +185,68 @@ Share of weekday bus-segments whose level changes, compared with the main run:
 | Trip-to-trip CV 0.5 | 1.0% |
 | 50% of riders get off one stop early or late | 0.6% |
 
-The modelling details (smoothing, spread, alighting) matter little. What matters is how many riders there are and how many buses carry them: the capacity check, the bus count and the ridership assumption. Counting buses from tickets alone makes loads about 1.5× higher on the same stretches, which is why the live feed now sets the bus count. Every load comes with a low and a high value, and the map and dashboard let you switch scenarios.
+The modelling details (smoothing, spread, alighting) matter little. What matters is how many riders there are and how many buses carry them: the capacity check, the bus count and the ridership assumption. Counting buses from tickets alone makes loads about 1.5× higher on the same stretches, which is why the bus count comes from the timetable checked against the live feed. Every load comes with a low and a high value, and the map and dashboard let you switch scenarios.
 
-### 4.1 Would a machine-learning model do better?
-We trained gradient-boosted trees (scikit-learn, Poisson loss) on the tickets alone to forecast ticketed riders per bus for every weekday stretch and half hour. They were trained on Oct 1–17 to predict Oct 18–24, then given Oct 1–24 to predict Oct 25–31, the same last-week check as §3. Inputs are ticket rates for the cell, its neighbours, the route and the city, plus position, time, direction and bus count. Details are in `docs/results/ml_forecast.md`.
+## 5. Statistical model or machine learning?
+The crowding estimate is statistical: ticket counts pooled over buses, smoothed, shrunk where sparse (§2.4) and scaled to all riders (§2.6). We tested it against gradient-boosted trees, ARIMA and the pretrained Chronos forecasting models on two questions, always on days the models had not seen.
 
-| On the last week (cells with ≥ 10 tickets) | Crowding model | ML, tickets only | ML correcting the crowding model |
+| Question | Statistical model | Best other model | Verdict |
+|---|---|---|---|
+| How full is this bus usually? Forecasting the last week of October (§5.1) | Right level 75.5% of the time; week's riding 1.01× actual | Trees: 74.9%; 0.94× | Tie. Trees rank stretches slightly better (0.895 against 0.887) but miss the week's level. |
+| How busy in the next 1–3 hours, route by route? (§5.2) | Error 2.0% below the usual pattern alone | Trees: 5.5% below; Chronos-2: 4.0% | Trees |
+| How busy in the next 1–3 hours, for the whole city? (§5.2) | 8.1% average error | Trees 9.8%, ARIMA 10.0% | Statistical |
+
+**The statistical model is the default.** The models' margins are a few percent, measured on 17 test days. One month of tickets is too little to retrain a model safely: the week-ahead trees carried the festival week's level into the next week. Every number in the statistical model can be traced to tickets, buses and stated assumptions.
+
+**The trees are an opt-in live model** (`LIVE_MODEL=trees`, §2.9), for route-by-route accuracy in the next hours. The best setup as tickets accumulate is a hybrid, retrained monthly. The statistical model would set the usual pattern and the city's level, and the trees would adjust each route.
+
+### 5.1 How full is this bus usually?
+Gradient-boosted trees (scikit-learn, Poisson loss) forecast ticketed riders per bus for every weekday stretch and half hour from the tickets alone. They were trained on Oct 1–17 to predict Oct 18–24, then given Oct 1–24 to predict Oct 25–31, the same last-week check as §3. Inputs are ticket rates for the cell, its neighbours, the route and the city, plus position, time, direction and bus count. Details are in `docs/results/ml_forecast.md`.
+
+| Last week of October (cells with ≥ 10 tickets) | Statistical model | Trees, tickets only | Trees correcting the statistical model |
 |---|---|---|---|
 | Rank correlation with what happened | 0.887 | 0.895 | 0.894 |
 | Same crowding level | 75.5% | 74.9% | 74.9% |
-| Forecast of the week's total riding | 1.01× | 0.94× | 0.93× |
-| Error spreading riders over stretches, once the week's total is known (deviance, all cells) | 0.145 | 0.130 | 0.131 |
+| Week's total riding, forecast / actual | 1.01× | 0.94× | 0.93× |
+| Error spreading riders over stretches once the week's total is known (deviance) | 0.145 | 0.130 | 0.131 |
 
-- **Where riders go, ML does a little better.** It ranks stretches slightly better. With the week's total fixed, it spreads riders over stretches and hours with about 10% less error overall and 8% less on busy stretches, partly by borrowing from similar stretches where tickets are thin.
-- **How many ride, it does worse.** Ticketed riding in Dussehra week (Oct 18–24) was 8% below the crowding model's estimate; in the last week of October it was about at it. With one month there is only one such pair of weeks to learn from, so the ML model carried the festival week's level forward and under-forecast the last week by 6%. Its crowding levels agree slightly less often as a result.
-- **Neither can fix what the tickets lack:** the expansion to all riders, app use that differs by route, and buses that sell no tagged ticket. The ML model forecasts ticketed riders per bus; the step to crowding is the same for both.
+- **Where riders go, the trees do a little better.** With the week's total fixed, they spread riders over stretches and hours with about 10% less error, partly by borrowing from similar stretches where tickets are thin.
+- **How many ride, they do worse.** Ticketed riding in Dussehra week (Oct 18–24) was 8% below the statistical estimate, and the last week was about at it. With one month there is one such pair of weeks to learn from, so the trees carried the festival week's level forward and forecast 6% too few riders.
+- **Neither can fix what the tickets lack:** the expansion to all riders, app use that differs by route, and buses that sell no tagged ticket.
 
-So ML is worth adding for the pattern across stretches and hours once there are a few months of tickets, with the level coming from live tickets (§2.9). The crowding model stays the default: it is as accurate, needs no training history, and every number in it can be traced.
-
-### 4.2 Does the live adjustment help? Replaying October
+### 5.2 How busy in the next hours? Replaying October
 We replayed Oct 15–31 hour by hour. At every hour from 06:00 to 21:00, each method forecast every route's ticketed riders for the next three hours from the tickets up to then: 1.5 million route-hour forecasts. "Usual" is the average of the earlier days of the same day type, so nothing is fitted on the day it forecasts. Settings and models were tuned or trained on Oct 15–24 and scored on Oct 25–31, and the other way round. Details are in `docs/results/nowcast_backtest.md`.
 
 | Method | Error drop vs usual pattern | Busy routes | Oct 18–20 (Dussehra) | City total error |
 |---|---|---|---|---|
 | Usual pattern only | — | — | — | 12.3% |
-| Previous rule: route's last hour, 6 pseudo-tickets | −7.6% | −31.9% | −1.8% | 9.9% |
-| **City ratio, nudged by the route (now the default, §2.9)** | **2.0%** | **6.0%** | **6.7%** | **8.1%** |
+| Route-only rule: route's last hour, 6 pseudo-tickets | −7.6% | −31.9% | −1.8% | 9.9% |
+| **City ratio nudged by the route (default, §2.9)** | **2.0%** | **6.0%** | **6.7%** | **8.1%** |
 | ARIMA on the city total, usual pattern as regressor | 0.9% | 2.3% | 2.8% | 10.0% |
 | ARIMA per route, usual pattern as regressor | −2.7% | −5.3% | 3.7% | 14.2% |
 | Chronos-Bolt per route (pretrained, history only) | −3.8% | −8.9% | −2.7% | 15.9% |
 | Chronos-2 per route, usual pattern as covariate | 4.0% | 4.3% | 4.9% | 11.8% |
-| Gradient-boosted trees on today's tickets | 5.5% | 7.0% | 11.0% | 9.8% |
+| **Gradient-boosted trees on today's tickets (opt-in)** | **5.5%** | **6.8%** | **10.9%** | 9.8% |
 
 Error is Poisson deviance per route-hour. Busy routes are route-hours with at least 10 usual ticketed riders. City total error is the average error of the city's total for each forecast hour.
 
-- **The previous rule made forecasts worse.** One hour of a route's tickets mostly reflects which buses happened to pass: on busy routes it correlates only 0.24 with the next hour. The rule applied it in full for three hours. It also counted usual riders twice on routes with short workings. Both are fixed.
-- **The whole city is the signal.** On unusual days the city's ticket rate against usual carries over for hours. On Dussehra eve it ran 44% below usual at 08:00. Using the city's ratio, with the route's own tickets as a small nudge and fading by 0.85 per hour, gives the best city totals of any method. It needs no training and costs nothing to run, so it is now the service default.
-- **ARIMA and Chronos do not beat it on the live part.** Fitted mostly on ordinary days, ARIMA learns that departures from usual are small and short-lived. On Dussehra eve it carried only about a third of the morning's shortfall into 09:00: it forecast 11,650 riders, against 8,310 actual and 13,505 usual. Per route, ARIMA and Chronos-Bolt work from 2–3 tickets an hour, often none, and do worse than the usual pattern.
-- **Chronos-2 is the strongest pretrained model**, at 4.0% when given the usual pattern as a covariate. Most of its gain is on ordinary days and Saturdays, where it corrects the usual pattern from recent days; Saturday's usual rests on only 2–4 earlier Saturdays. It forecasts 3% too few riders overall.
-- **Gradient-boosted trees do best, partly by fixing the usual pattern.** They gain 5.5% overall. Without today's tickets they still gain 1.8%. The next step is therefore a better usual pattern (weighting recent weeks, borrowing across day types for Saturdays). After that comes a trained live model, once there are a few months of tickets to train it on.
-- **Limit: an outage looks like an empty city.** On Oct 6, tickets fell to 29% of usual between 09:00 and 10:00 and to 0% the next hour. That was a ticketing outage, not riders staying home. The 0.67 floor limits the damage, and the service ignores live tickets once none have arrived for an hour. Checking against the live bus feed (buses running normally, but no tickets) would tell the two apart.
+- **A route's own last hour is mostly noise.** It reflects which buses happened to pass: on busy routes it correlates only 0.24 with the next hour. Trusting it fully makes forecasts worse than the usual pattern.
+- **The whole city is the signal.** On unusual days the city's ticket rate against usual carries over for hours: on Dussehra eve it ran 44% below usual at 08:00. The city ratio, nudged by the route and fading by 0.85 per hour, gives the best city totals of any method. It needs no training.
+- **ARIMA and Chronos do not beat it on the live signal.** Fitted mostly on ordinary days, ARIMA learns that departures from usual are small and short-lived. On Dussehra eve it carried only about a third of the morning's shortfall into 09:00: it forecast 11,650 riders against 8,310 actual and 13,505 usual. Per route, ARIMA and Chronos-Bolt work from 2–3 tickets an hour, often none, and do worse than the usual pattern. Chronos-2, given the usual pattern as a covariate, gains most on ordinary days and Saturdays, where it corrects the usual pattern from recent days, and forecasts 3% too few riders.
+- **The trees do best route by route, partly by fixing the usual pattern.** Without today's tickets they still gain 1.9%, mostly where the usual pattern rests on few days (Saturdays have 2–4 earlier ones). Weighting recent weeks in the usual pattern would capture part of this without a model.
+- **Limit: an outage looks like an empty city.** On Oct 6, tickets fell to 29% of usual between 09:00 and 10:00 and to 0% the next hour: a ticketing outage, not riders staying home. The 0.67 floor limits the damage, and the service ignores live tickets once none have arrived for an hour. Checking against the live bus feed (buses running normally, but no tickets) would tell the two apart.
 
-## 5. Where the estimates are least reliable
+## 6. Where the estimates are least reliable
 - **Weekends.** 88% of Saturday and 92% of Sunday bus-segments are low confidence, because there are only 5–6 days of each.
 - **North and outer Delhi.** In the north, north-east and west, and beyond 20 km from the centre (25% reliable), ticket density is low. The weakest busy areas include Rana Pratap Bagh, Ice Factory (Rani Jhansi Road), Chhajjupur and Narela Terminal. Coverage is best in the south, south-east and south-west. **Busy-corridor rankings therefore partly reflect where people use the ticketing app**, since one city-wide expansion factor cannot separate the two.
-- **Bus supply.** So far the live feed has been sampled on one weekday evening. Other hours and day types use an average factor until more snapshots are saved, and the feed is from November while the tickets are from October.
+- **Bus supply.** The calibration here rests on one weekday evening of the live feed. Other hours and day types use an average factor until more snapshots are saved, and the feed is from November while the tickets are from October.
 - **Riders not placed.** 1.7% of tickets are on routes not in the timetable and 4.9% board at a stop not found on their route. They are scaled in per route, not placed on stretches.
 - **Hours.** One expansion factor is used for every hour. Pass holders and free-travel riders are not in the tickets and probably ride more at the peaks, which would make peaks busier than shown.
 - **Absolute levels** depend on the ridership assumption (§2.6) and on seat counts inferred without a fleet list.
 
 Every cell carries a confidence of high, medium or low. Confidence is high with at least 40 ticketed riders behind the estimate, medium with at least 12, and is capped further when the bin rests on very few buses. Overall, 43% of weekday bus-segments are medium or high (66% in the morning peak). The UI fades low-confidence stretches and shows confidence dots on every leg.
 
-## 6. Reproducing
+## 7. Reproducing
 ```
 just fetch && just build      # tickets, Rust and web builds (put the GTFS zip at data/raw/gtfs/)
 just rt-collect               # save the live feed every minute (needs DTS_API_KEY in .env); leave running
@@ -242,5 +254,6 @@ just profiles                 # model from all of October, calibrated on the sav
 just validate                 # all runs plus the validation suite, about 5 min
 just validate-forecasts       # optional: add ARIMA and the pretrained Chronos models to the live-adjustment test, about 45 min
 just serve                    # API and web app at http://localhost:8090, with live buses
+docker compose up --build     # or everything, OpenTripPlanner included, as one image
 ```
 Every assumption is in `crowding/config/model.dhall`. Any value can be overridden for one run, e.g. `--set trip_cv=0.5`.

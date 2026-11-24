@@ -8,13 +8,13 @@ are least reliable.
 ## Rerun
 
 From the project root, after the pipeline has written its runs to `data/out/<run>/`
-(`full`, `train`, `test`, `sens_spread`, `sens_cv`, `sens_noobs`, `sens_nocap`, `sens_shrink`):
+(`scripts/run_all_models.sh` writes all of them: `full`, `train`, `test`, the `sens_*` runs and the `ml_*` folds):
 
 ```sh
 analysis/.venv/bin/python analysis/run_all.py
 ```
 
-The whole run takes well under a minute. Each step can also be run on its own, e.g.
+The whole run takes about five minutes. Each step can also be run on its own, e.g.
 `analysis/.venv/bin/python analysis/src/stability.py`, but `summary.py` reads the JSON written by the
 other steps, so run it last.
 
@@ -38,7 +38,7 @@ analysis/.venv/bin/pip install -r analysis/requirements-forecast.txt
 | `src/sensitivity.py` | How much do the crowding levels move under other assumptions (ridership, bus supply, capacity cap, alighting spread, trip-to-trip spread, shrinkage)? | `docs/results/sensitivity.md` |
 | `src/coverage.py` | Where and when are estimates least reliable, and what does the confidence label miss? | `docs/results/coverage.md`, `docs/figures/coverage_map.png` |
 | `src/ml_forecast.py` | Would gradient-boosted trees trained on the tickets forecast the last week better than the crowding model? | `docs/results/ml_forecast.md` |
-| `src/nowcast_backtest.py` | Replaying October hour by hour: does the live-ticket adjustment forecast the next three hours better than the usual pattern, and which version is best? Adds the ARIMA and Chronos rows when `nowcast_arima.py` and `nowcast_chronos.py` have been run. | `docs/results/nowcast_backtest.md`, `docs/figures/nowcast_*.png` |
+| `src/nowcast_backtest.py` | Replaying October hour by hour: does the live adjustment forecast the next three hours better than the usual pattern, and which method is best? Adds the ARIMA and Chronos rows when `nowcast_arima.py` and `nowcast_chronos.py` have been run, and exports the trees for the service's opt-in live model. | `docs/results/nowcast_backtest.md`, `docs/figures/nowcast_*.png`, `data/out/full/live_trees.json` |
 | `src/nowcast_arima.py` | Optional, not part of `run_all.py`: regression with ARIMA errors on the city total and on every route, refitted at every forecast time (about 10 minutes). Needs `requirements-forecast.txt`. | `data/out/nowcast/arima.npz` |
 | `src/nowcast_chronos.py` | Optional, not part of `run_all.py`: forecasts from the pretrained Chronos models for the same cells (about 35 minutes). Needs `requirements-forecast.txt`. | `data/out/nowcast/chronos.npz` |
 | `src/summary.py` | One-page digest of the headline numbers. | `docs/results/summary.md` |

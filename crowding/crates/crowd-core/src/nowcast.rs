@@ -9,11 +9,13 @@
 //! ahead. Settings come from replaying October (docs/results/nowcast_backtest.md).
 
 use std::collections::{BTreeMap, VecDeque};
+use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 use serde::Serialize;
 
 use crate::daytype::{DayType, N_DAYTYPES};
+use crate::live_trees::LiveTrees;
 use crate::snapshot::Snapshot;
 
 #[derive(Debug, Clone)]
@@ -27,6 +29,10 @@ pub struct NowcastConfig {
     pub city_anchor: bool,
     /// The factor's distance from 1 shrinks by this per whole hour ahead (1 = no fading).
     pub decay_per_hour: f64,
+    /// Local time = UTC + this (India: 19800). Used for "since the day started".
+    pub utc_offset_secs: i64,
+    /// The service day starts at this local time (04:00).
+    pub day_start_secs: u32,
 }
 
 impl Default for NowcastConfig {
@@ -38,6 +44,8 @@ impl Default for NowcastConfig {
             max_factor: 1.5,
             city_anchor: true,
             decay_per_hour: 0.85,
+            utc_offset_secs: 19_800,
+            day_start_secs: 4 * 3600,
         }
     }
 }
@@ -52,6 +60,8 @@ pub struct LiveFactor {
     pub expected: f64,
     /// The whole city's live ticketed riders against usual over the same window (clamped).
     pub city_factor: f64,
+    /// "rule" (default) or "trees" (opt-in machine-learning model).
+    pub model: &'static str,
     /// Buses running the route now (live feed) and usually at this time.
     pub buses_live: Option<u32>,
     pub buses_usual: Option<f64>,
@@ -66,6 +76,7 @@ impl LiveFactor {
             observed: 0.0,
             expected: 0.0,
             city_factor: 1.0,
+            model: "rule",
             buses_live: None,
             buses_usual: None,
             supply_factor: 1.0,
@@ -80,6 +91,11 @@ pub struct Nowcast {
     recent: FxHashMap<u32, VecDeque<(i64, f32)>>,
     /// Whole city: pax per minute (unix minute).
     city: BTreeMap<i64, f64>,
+    /// Since the service day started (04:00): per route and for the city, (day, pax).
+    day_route: FxHashMap<u32, (i64, f64)>,
+    day_city: (i64, f64),
+    /// Opt-in machine-learning model; the rule is used when absent.
+    pub trees: Option<Arc<LiveTrees>>,
     pub latest_ts: i64,
     pub observed_total: u64,
 }
@@ -92,10 +108,32 @@ impl Nowcast {
         }
     }
 
+    pub fn with_trees(mut self, trees: Option<Arc<LiveTrees>>) -> Self {
+        self.trees = trees;
+        self
+    }
+
+    /// Service day of a unix time: days change at `day_start_secs` local time.
+    fn day_of(&self, ts: i64) -> i64 {
+        (ts + self.cfg.utc_offset_secs - self.cfg.day_start_secs as i64).div_euclid(86_400)
+    }
+
     pub fn observe(&mut self, route: u32, ts: i64, pax: f32) {
+        let day = self.day_of(ts);
         let q = self.recent.entry(route).or_default();
         q.push_back((ts, pax));
         *self.city.entry(ts.div_euclid(60)).or_default() += pax as f64;
+        for acc in [
+            self.day_route.entry(route).or_insert((day, 0.0)),
+            &mut self.day_city,
+        ] {
+            if acc.0 < day {
+                *acc = (day, 0.0);
+            }
+            if acc.0 == day {
+                acc.1 += pax as f64;
+            }
+        }
         self.latest_ts = self.latest_ts.max(ts);
         self.observed_total += 1;
         let cutoff = self.latest_ts - 2 * self.cfg.window_secs;
@@ -151,6 +189,17 @@ impl Nowcast {
         } else {
             1.0
         };
+        if let Some(trees) = &self.trees {
+            let x = self.features(usual, route, dt, now, secs, hours_ahead, observed, expected);
+            return LiveFactor {
+                factor: trees.factor(&x),
+                observed,
+                expected,
+                city_factor,
+                model: "trees",
+                ..LiveFactor::neutral()
+            };
+        }
         if expected <= 0.0 && observed <= 0.0 && !self.cfg.city_anchor {
             return LiveFactor::neutral();
         }
@@ -169,6 +218,83 @@ impl Nowcast {
             city_factor,
             ..LiveFactor::neutral()
         }
+    }
+
+    /// Inputs of the opt-in trees, computed as in the October replay (`gbm_frame` in
+    /// analysis/src/nowcast_backtest.py), with "now" as the forecast time.
+    #[allow(clippy::too_many_arguments)]
+    fn features(
+        &self,
+        usual: &UsualBoardings,
+        route: u32,
+        dt: DayType,
+        now: i64,
+        secs: u32,
+        hours_ahead: u32,
+        obs1: f64,
+        exp1: f64,
+    ) -> [f64; 12] {
+        let h = 3600u32;
+        let k = hours_ahead.min(2);
+        let target = usual.window(Some(route), dt, secs + k * h, secs + (k + 1) * h);
+        let route_day = usual.window(Some(route), dt, 0, u32::MAX / 2);
+        let obs2: f64 = self
+            .recent
+            .get(&route)
+            .map(|q| {
+                q.iter()
+                    .filter(|(t, _)| *t > now - 2 * h as i64 && *t <= now)
+                    .map(|x| x.1 as f64)
+                    .sum()
+            })
+            .unwrap_or(0.0);
+        let exp2 = usual.window(Some(route), dt, secs.saturating_sub(2 * h), secs);
+        let ds = self.cfg.day_start_secs;
+        let today = self.day_of(now);
+        let since = |acc: Option<&(i64, f64)>| match acc {
+            Some((d, v)) if *d == today && secs > ds => *v,
+            _ => 0.0,
+        };
+        let (obs_day, city_obs_day) = (
+            since(self.day_route.get(&route)),
+            since(Some(&self.day_city)),
+        );
+        let (exp_day, city_exp_day) = if secs > ds {
+            (
+                usual.window(Some(route), dt, ds, secs),
+                usual.window(None, dt, ds, secs),
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        let city_obs1: f64 = self
+            .city
+            .range((now - h as i64).div_euclid(60) + 1..=now.div_euclid(60))
+            .map(|(_, v)| *v)
+            .sum();
+        let city_exp1 = usual.window(None, dt, secs.saturating_sub(h), secs);
+        let ratio = |o: f64, e: f64| ((o + 1.0) / (e + 1.0)).ln();
+        let city = |o: f64, e: f64| {
+            if e > 0.0 {
+                (o / e).clamp(0.05, 20.0).ln()
+            } else {
+                0.0
+            }
+        };
+        [
+            (target + 0.1).ln(),
+            (k + 1) as f64,
+            (secs / h).min(23) as f64,
+            dt.idx() as f64,
+            (route_day + 0.1).ln(),
+            ratio(obs1, exp1),
+            ratio(obs2, exp2),
+            ratio(obs_day, exp_day),
+            (exp1 + 0.1).ln(),
+            (exp_day + 0.1).ln(),
+            city(city_obs1, city_exp1),
+            city(city_obs_day, city_exp_day),
+        ]
     }
 
     pub fn routes_seen(&self) -> usize {
@@ -307,6 +433,30 @@ mod tests {
         feed(&mut n, 8, now, 970);
         let f = n.factor(&usual(), 7, DayType::Weekday, now, now as u32, 0);
         assert!(f.factor > 1.0 && f.factor < 1.15, "{}", f.factor);
+    }
+
+    #[test]
+    fn opt_in_trees_replace_the_rule() {
+        let json = serde_json::json!({
+            "features": crate::live_trees::FEATURES,
+            "baseline": 0.1,
+            "trees": [{
+                // Split on c1 (feature 10): a quiet city (ln ratio <= -0.1) lowers the factor.
+                "feature": [10, -1, -1], "threshold": [-0.1, 0.0, 0.0], "left": [1, 0, 0],
+                "right": [2, 0, 0], "missing_left": [false, false, false], "value": [0.0, -0.5, 0.0]
+            }]
+        });
+        let trees: LiveTrees = serde_json::from_value(json).unwrap();
+        let mut n = Nowcast::new(NowcastConfig::default()).with_trees(Some(Arc::new(trees)));
+        let now = 10 * 3600 - 19_800 + 86_400; // 10:00 local
+        feed(&mut n, 8, now, 800);
+        let f = n.factor(&usual(), 7, DayType::Weekday, now, 10 * 3600, 0);
+        assert_eq!(f.model, "trees");
+        assert!(
+            (f.factor - (0.1f64 - 0.5).exp()).abs() < 1e-12,
+            "{}",
+            f.factor
+        );
     }
 
     #[test]

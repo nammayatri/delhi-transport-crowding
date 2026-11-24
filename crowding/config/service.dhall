@@ -22,6 +22,10 @@
   , max_factor = 1.5
   , city_anchor = True
   , decay_per_hour = 0.85
+  -- "rule" or "trees": opt in to the gradient-boosted trees trained on the October
+  -- replay (better route by route, less right on the city's total).
+  , model = env:LIVE_MODEL as Text ? "rule"
+  , trees_path = env:LIVE_TREES as Text ? "../data/out/full/live_trees.json"
   -- "wall" or "replay" (now follows the latest ingested ticket, for demos).
   , clock = env:CROWD_CLOCK as Text ? "replay"
   , kafka = { enabled = False, brokers = "localhost:9092", topic = "tickets", group_id = "crowd-service" }

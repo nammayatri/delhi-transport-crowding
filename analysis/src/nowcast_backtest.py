@@ -1,8 +1,8 @@
 """Does the live-ticket adjustment forecast the next hours better than the usual pattern?
 
-The service scales a route's usual riding by how busy the route has been in the last hour
-(technical note 2.9). This replays October hour by hour and checks that rule against what happened,
-next to retuned versions of it, a version that leans on the whole city, a gradient-boosted model, and
+The service scales each route's usual riding by how busy the city, and the route, have been in the last
+hour (technical note 2.9). This replays October hour by hour and checks that rule against what happened,
+next to route-only rules, gradient-boosted trees (also exported for the service's opt-in live model), and
 (when `nowcast_arima.py` / `nowcast_chronos.py` have been run) ARIMA and the pretrained Chronos models.
 
 Setup, with nothing from the future:
@@ -24,8 +24,10 @@ Writes docs/results/nowcast_backtest.md and .json, docs/figures/nowcast_*.png.
 from __future__ import annotations
 
 import itertools
+import json
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -53,6 +55,7 @@ from common import (
 TICKETS = OUT / "full" / "assigned_tickets.parquet"
 CHRONOS = OUT / "nowcast" / "chronos.npz"
 ARIMA = OUT / "nowcast" / "arima.npz"
+LIVE_TREES = OUT / "full" / "live_trees.json"
 
 START = date(2026, 10, 1)
 ND = 31
@@ -71,7 +74,7 @@ UNUSUAL = {
     "2026-10-20": "Dussehra (holiday)",
 }
 
-# Current service settings (crowd-core NowcastConfig::default).
+# A route-only rule: the route's last hour, shrunk toward 1 with 6 pseudo-tickets.
 CURRENT = {"window": 1, "prior": 6.0, "lo": 0.5, "hi": 2.5, "decay": 1.0, "anchor": "one"}
 
 WINDOWS = [1, 2, 3, "day"]
@@ -289,28 +292,69 @@ def gbm_frame(c: Cells, m: np.ndarray, feats: list[str]) -> tuple[np.ndarray, np
     return Xf, c.y[m], base
 
 
+def fit_gbm(Xt: np.ndarray, yt: np.ndarray, bt: np.ndarray) -> HistGradientBoostingRegressor:
+    """Poisson trees for actual / usual, weighted by usual (an offset model). Day type is a plain
+    number (0 weekday, 1 Saturday, 2 Sunday/holiday) so the service can evaluate the trees."""
+    model = HistGradientBoostingRegressor(
+        loss="poisson",
+        learning_rate=0.05,
+        max_iter=400,
+        max_leaf_nodes=31,
+        min_samples_leaf=200,
+        l2_regularization=1.0,
+        early_stopping=True,
+        validation_fraction=0.15,
+        random_state=0,
+    )
+    return model.fit(Xt, yt / bt, sample_weight=bt)
+
+
 def cross_gbm(c: Cells, feats: list[str]) -> np.ndarray:
     pred = np.zeros_like(c.y)
     names = list(FOLDS)
     for a, b in [(0, 1), (1, 0)]:
         mt, ms = c.fold_mask(FOLDS[names[a]]), c.fold_mask(FOLDS[names[b]])
-        Xt, yt, bt = gbm_frame(c, mt, feats)
-        model = HistGradientBoostingRegressor(
-            loss="poisson",
-            learning_rate=0.05,
-            max_iter=400,
-            max_leaf_nodes=31,
-            min_samples_leaf=200,
-            l2_regularization=1.0,
-            early_stopping=True,
-            validation_fraction=0.15,
-            random_state=0,
-            categorical_features=[feats.index("daytype")],
-        )
-        model.fit(Xt, yt / bt, sample_weight=bt)
+        model = fit_gbm(*gbm_frame(c, mt, feats))
         Xs, _, bs = gbm_frame(c, ms, feats)
         pred[ms] = bs * model.predict(Xs)
     return pred
+
+
+def export_trees(c: Cells, path: Path) -> dict:
+    """Train the trees on every replayed day and write them for the service's opt-in live model
+    (`live.model = "trees"`). The file carries check rows the service re-scores on load."""
+    Xt, yt, bt = gbm_frame(c, c.mask, GBM_FEATURES)
+    model = fit_gbm(Xt, yt, bt)
+    trees = []
+    for (t,) in model._predictors:
+        n = t.nodes
+        leaf = n["is_leaf"].astype(bool)
+        trees.append(
+            {
+                "feature": np.where(leaf, -1, n["feature_idx"]).astype(int).tolist(),
+                "threshold": n["num_threshold"].astype(float).tolist(),
+                "left": n["left"].astype(int).tolist(),
+                "right": n["right"].astype(int).tolist(),
+                "missing_left": n["missing_go_to_left"].astype(bool).tolist(),
+                "value": n["value"].astype(float).tolist(),
+            }
+        )
+    rng = np.random.default_rng(0)
+    idx = rng.choice(len(Xt), size=200, replace=False)
+    Xc = Xt[idx].astype(np.float64)
+    checks = [{"x": x.tolist(), "factor": float(f)} for x, f in zip(Xc, model.predict(Xc))]
+    out = {
+        "about": "Gradient-boosted trees (scikit-learn, Poisson loss): ticketed riders in an hour ahead / usual, "
+        "from today's tickets so far. Trained on the Oct 15-31 replay (analysis/src/nowcast_backtest.py).",
+        "features": GBM_FEATURES,
+        "baseline": float(np.asarray(model._baseline_prediction).ravel()[0]),
+        "trees": trees,
+        "checks": checks,
+        "trained_on_cells": int(len(Xt)),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(out))
+    return {"path": str(path.relative_to(OUT.parent.parent)), "trees": len(trees), "cells": int(len(Xt))}
 
 
 # --------------------------------------------------------------------------------------
@@ -356,11 +400,11 @@ def main() -> None:
     preds: dict[str, np.ndarray] = {}
     settings: dict[str, dict] = {}
     preds["Usual pattern only"] = c.e.copy()
-    preds["Current rule (route, last hour, 6 pseudo-tickets)"] = rule(c, **CURRENT)
+    preds["Route-only rule (last hour, 6 pseudo-tickets)"] = rule(c, **CURRENT)
     for name, anchor in [
-        ("Route rule, retuned", "one"),
+        ("Route-only rule, tuned", "one"),
         ("City ratio only, tuned", "city-only"),
-        ("Route shrunk toward city, tuned", "city"),
+        ("City ratio nudged by the route (service default)", "city"),
     ]:
         t1 = time.time()
         preds[name], settings[name] = cross_rule(c, anchor)
@@ -449,6 +493,8 @@ def main() -> None:
     cr = c.city_ratio(1, 0.0, 100.0)
     res["city_ratio_last_hour"] = {dates[d].isoformat(): [float(x) for x in cr[i]] for i, d in enumerate(EVAL_DAYS)}
 
+    res["live_trees"] = export_trees(c, LIVE_TREES)
+    print(f"  exported the live trees to {LIVE_TREES}")
     figs = figures(c, dates, preds, res)
     write(c, dates, rows, res, figs)
     save_json("nowcast_backtest", res)
@@ -460,10 +506,10 @@ def main() -> None:
 # --------------------------------------------------------------------------------------
 
 SHORT = {
-    "Current rule (route, last hour, 6 pseudo-tickets)": "Current rule",
-    "Route rule, retuned": "Route rule, retuned",
+    "Route-only rule (last hour, 6 pseudo-tickets)": "Route-only rule",
+    "Route-only rule, tuned": "Route-only rule, tuned",
     "City ratio only, tuned": "City ratio only",
-    "Route shrunk toward city, tuned": "Route toward city",
+    "City ratio nudged by the route (service default)": "Service default",
     "Gradient-boosted trees, no live tickets": "Trees, no live tickets",
     "Gradient-boosted trees on today's tickets": "Gradient-boosted trees",
     "Chronos-Bolt per route (pretrained, no profile)": "Chronos-Bolt per route",
@@ -478,8 +524,8 @@ def figures(c: Cells, dates, preds, res) -> dict:
     setup_style()
     out = {}
     show = [
-        ("Current rule (route, last hour, 6 pseudo-tickets)", GREY),
-        ("Route shrunk toward city, tuned", BLUE),
+        ("Route-only rule (last hour, 6 pseudo-tickets)", GREY),
+        ("City ratio nudged by the route (service default)", BLUE),
         ("Gradient-boosted trees on today's tickets", ORANGE),
         ("Chronos-2 per route, usual pattern as covariate", AQUA),
         ("ARIMA on the city total x usual pattern", YELLOW),
@@ -560,8 +606,9 @@ def write(c: Cells, dates, rows, res, figs) -> None:
     text = f"""
 # Live adjustment: does it forecast the next hours better?
 
-The service scales a route's usual riding by how busy the route has been in the last hour (technical note
-2.9). This replays October hour by hour and scores that rule, and alternatives, against what happened.
+The service scales each route's usual riding by how busy the city, and the route, have been in the last
+hour (technical note 2.9). This replays October hour by hour and scores that rule and the alternatives
+against what happened.
 
 **Setup.** Every route's ticketed riders per hour. "Usual" for a day is the average of the earlier days of
 its day type, so it is never fitted on the day it forecasts. At every hour from 06:00 to 21:00 on Oct 15-31
@@ -591,7 +638,7 @@ Dussehra.
 {md_table(pl.DataFrame(ur))}
 
 ## Reading the results
-See the technical note, section 4.2, for the interpretation and what changed in the service.
+See the technical note, section 5, for the interpretation and how the statistical rule compares with the models.
 """
     write_md("nowcast_backtest", text)
 

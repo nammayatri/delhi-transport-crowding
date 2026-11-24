@@ -8,6 +8,7 @@ use std::time::SystemTime;
 use arc_swap::ArcSwapOption;
 use chrono::{DateTime, FixedOffset, NaiveDate, Timelike, Utc};
 use crowd_core::daytype::{DayCalendar, DayType};
+use crowd_core::live_trees::LiveTrees;
 use crowd_core::names::{norm_route, norm_stop, route_candidates};
 use crowd_core::nowcast::{LiveFactor, Nowcast, NowcastConfig, UsualBoardings};
 use crowd_core::planner::{active_mask, Network, PlannerConfig};
@@ -174,6 +175,19 @@ pub struct When {
 
 impl AppState {
     pub fn new(cfg: ServiceConfig) -> Self {
+        let trees = match cfg.live.model.as_str() {
+            "trees" => match LiveTrees::load(std::path::Path::new(&cfg.live.trees_path)) {
+                Ok(t) => {
+                    tracing::info!(trees = t.trees.len(), "live model: gradient-boosted trees");
+                    Some(Arc::new(t))
+                }
+                Err(e) => {
+                    tracing::error!(error = %e, "live trees not loaded; using the rule");
+                    None
+                }
+            },
+            _ => None,
+        };
         let live = Nowcast::new(NowcastConfig {
             window_secs: cfg.live.window_secs,
             prior_tickets: cfg.live.prior_tickets,
@@ -181,7 +195,9 @@ impl AppState {
             max_factor: cfg.live.max_factor,
             city_anchor: cfg.live.city_anchor,
             decay_per_hour: cfg.live.decay_per_hour,
-        });
+            ..NowcastConfig::default()
+        })
+        .with_trees(trees);
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_millis(cfg.otp.timeout_ms))
             .build()

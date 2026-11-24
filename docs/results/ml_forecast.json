@@ -4,7 +4,7 @@
   "headline_cells": 157530,
   "rows": [
     {
-      "model": "crowding model (current)",
+      "model": "crowding model",
       "Spearman vs raw test": 0.8868276936148751,
       "Spearman vs test model": 0.9115589522366416,
       "mean abs error (riders/bus)": 10.93241709499924,

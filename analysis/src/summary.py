@@ -23,7 +23,6 @@ def main() -> None:
     rows = {r["scenario"]: r for r in v["rows"]}
     band = {r["band"]: r for r in c["weekday_by_band"]}
     dn = c["duplicate_names"]
-    oc = c["over_crush"]
     ring_ok = sum(1 for r in p["direction_by_ring"] if r["AM in/out load"] > 1 and r["PM in/out load"] < 1)
     structural = sorted(
         (r for r in v["rows"] if r["scenario"].startswith("sens_")), key=lambda r: -r["level changed"]
@@ -37,7 +36,13 @@ def main() -> None:
     seg_base = comp[("test model", "segment all-day average (train)")]
     meta = load_json("full", "meta.json")
     feed = meta["meta"].get("feed_version") or "?"
-    groups = meta.get("route_groups", {})
+    ml = {r["model"]: r for r in read_json("ml_forecast")["rows"]}
+    ml_cm, ml_ml = ml["crowding model"], ml["ML, tickets only"]
+    nc = read_json("nowcast_backtest")["methods"]
+    nc_rule = nc["City ratio nudged by the route (service default)"]["all"]
+    nc_gbm = nc["Gradient-boosted trees on today's tickets"]["all"]
+    nc_c2 = nc.get("Chronos-2 per route, usual pattern as covariate", {}).get("all")
+    nc_ar = nc.get("ARIMA on the city total x usual pattern", {}).get("all")
     rt = meta.get("rt")
     km = meta.get("bus_km_per_day", {})
     if rt:
@@ -108,12 +113,14 @@ or crowded ranges {pct(am_range[0])}-{pct(am_range[1])} across runs: quote it wi
 the {'/'.join(c['best_sectors'])} sectors and weakest in the {'/'.join(c['worst_sectors'])} sectors and beyond 20 km
 ({pct(c['reliable_by_ring']['20+ km'], 0)}); weakest busy areas: {', '.join(f"{w['area_stop']} ({w['where']})" for w in c['weak_areas'][:4])}.
 
-**Fixed during validation.** Tickets name only the route, so the stop patterns of one route (full and
-short-turn trips) are merged onto the pattern that covers them ({groups.get('patterns_merged', 0)} merged,
-{groups.get('patterns_kept_apart', 0)} kept apart because their stops do not line up). Counting buses from tickets alone
-missed many buses that ran; the live feed now sets the bus count. Loads above crush capacity
-are capped at crush and flagged ({num(oc['high_conf'])} high-confidence cells remain above crush), and a bin
-whose bus count rests on few buses can no longer be high confidence.
+**Statistical model or machine learning.** Week ahead (Oct 25-31, cells with >= 10 tickets): the crowding
+model ranks stretches with Spearman {num(ml_cm['Spearman vs raw test'], 3)} against {num(ml_ml['Spearman vs raw test'], 3)} for
+gradient-boosted trees, agrees on the level {pct(ml_cm['level agreement'])} vs {pct(ml_ml['level agreement'])} of the time, and
+forecasts the week's riding at {num(ml_cm['forecast / actual week total'], 2)}x vs {num(ml_ml['forecast / actual week total'], 2)}x of actual.
+Next one to three hours (replay of Oct 15-31): the statistical city rule cuts route-hour forecast error by
+{pct(nc_rule['gain'])} and the city's hourly total error to {pct(nc_rule['city_ape'])}; gradient-boosted trees cut route-hour error by
+{pct(nc_gbm['gain'])} (city total error {pct(nc_gbm['city_ape'])}), Chronos-2 by {pct(nc_c2['gain']) if nc_c2 else 'n/a'}, ARIMA on the city total by
+{pct(nc_ar['gain']) if nc_ar else 'n/a'}. The statistical model is the default; the trees are an opt-in live model.
 
 **Known limits.**
 {limit1}

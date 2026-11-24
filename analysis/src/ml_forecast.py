@@ -278,7 +278,7 @@ def main() -> dict:
     rows, fitted = [], {}
     # The crowding model and two simple baselines, from the same feature window.
     model_rate = ev["model_rate"].to_numpy()
-    rows.append(score("crowding model (current)", ev, model_rate, ev["model_load"].fill_null(0).to_numpy(), tix_pred, target, trip_cv))
+    rows.append(score("crowding model", ev, model_rate, ev["model_load"].fill_null(0).to_numpy(), tix_pred, target, trip_cv))
     for col, name in [("seg_rate", "stretch all-day average"), ("route_rate", "route all-day average")]:
         r_ = ev[col].to_numpy()
         rows.append(score(name, ev, r_, to_load(r_, exp["train"], adj_p, crush), np.full(ev.height, 1e9), target, trip_cv))
