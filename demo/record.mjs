@@ -7,6 +7,7 @@ import ffmpeg from "ffmpeg-static";
 import { chromium } from "playwright";
 
 const APP = process.env.DEMO_URL ?? "http://localhost:8090/";
+const LIVE = process.env.DEMO_LIVE_URL;
 const W = 1440;
 const H = 900;
 const OUT = new URL("./out/", import.meta.url).pathname;
@@ -242,6 +243,16 @@ await card(
    </ul>`,
   9000,
 );
+// Last card: where the deployed app runs (DEMO_LIVE_URL), if given.
+if (LIVE) {
+  await hideCard();
+  await card(
+    `<h1>Try it live</h1>
+     <p style="font-size: 36px; opacity: 1; margin: 10px 0 18px;"><b>${LIVE}</b></p>
+     <p>Journey planner, network crowding map with live buses, and operator dashboard</p>`,
+    7000,
+  );
+}
 
 // ---------- encode ----------
 const tEnd = (Date.now() - t0) / 1000;
