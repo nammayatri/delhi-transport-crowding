@@ -1,5 +1,6 @@
-// Thin client for the crowding service. Same origin in production; proxied in dev.
-const BASE = (import.meta as any).env?.VITE_API_BASE ?? "";
+// Thin client for the crowding service. Same origin in production; proxied in dev. Paths are
+// relative to the page, so the app also works under a sub-path (e.g. https://host/delhi-crowding/).
+const BASE = (import.meta as any).env?.VITE_API_BASE ?? ".";
 
 export type Level = "seats" | "standing" | "crowded";
 export type Confidence = "low" | "medium" | "high";

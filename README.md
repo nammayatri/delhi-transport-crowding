@@ -63,7 +63,7 @@ The root `Dockerfile` builds a single image. It holds the crowding service, the 
 docker compose up --build                                  # http://localhost:8090
 docker buildx build --platform linux/amd64 -t <registry>/delhi-transport-crowding .   # for a cluster
 ```
-`deploy/kubernetes.yaml` runs it on Kubernetes as a Deployment with a Service and an Istio VirtualService. The pod needs about 4.5 GB of memory: OpenTripPlanner takes 3 GB and the service 1 GB.
+`deploy/kubernetes.yaml` runs it on Kubernetes as a Deployment with a Service and an Istio VirtualService that serves it under a sub-path (`/delhi-crowding/`) of an existing host. The pod needs about 4.5 GB of memory: OpenTripPlanner takes 3 GB and the service 1 GB.
 
 ## Tests
 - `cd crowding && cargo test`:

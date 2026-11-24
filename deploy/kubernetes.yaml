@@ -52,10 +52,15 @@ kind: VirtualService
 metadata:
   name: delhi-transport-crowding
 spec:
+  # Served under a sub-path of an existing host: https://crowding.example.com/delhi-crowding/
   hosts: [crowding.example.com]
   gateways: [istio-system/ingressgateway]
   http:
-    - route:
+    - match: [{ uri: { exact: /delhi-crowding } }]
+      redirect: { uri: /delhi-crowding/, scheme: https }
+    - match: [{ uri: { prefix: /delhi-crowding/ } }]
+      rewrite: { uri: / }
+      route:
         - destination:
             host: delhi-transport-crowding
             port: { number: 80 }
